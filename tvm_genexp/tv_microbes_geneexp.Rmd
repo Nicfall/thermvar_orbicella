@@ -1,0 +1,40 @@
+---
+title: "tv_microbes_geneexp"
+author: "Nicola Kriefall"
+date: "7/18/2022"
+output: html_document
+---
+
+# Download data
+
+From BaseSpace on BU's SCC:
+
+```{bash}
+#working directory:
+pwd
+#/projectnb/davieslab/nicpro/thermvar/genexp
+module load basespace-cli
+bs auth
+#output said this: 
+#Please go to this URL to authenticate: URL 
+#So I did that & it worked
+bs download project -i 295384090 -o .
+#note from a different time: I didn't see where to get the project ID from except from the end of the URL of the page:
+#https://basespace.illumina.com/analyses/467998258?projectId=295384090
+
+#now all the files are in their own folder for some reason, so copying them out of it to a new data directory:
+mkdir fastq_raw
+for dir in SA*/
+do
+	echo $dir
+	cp $dir/*.fastq.gz ./fastq_raw
+done
+
+#tar/zip the raw folders
+tar -cvzf illumina_things.tar.gz SA*
+```
+
+
+
+
+

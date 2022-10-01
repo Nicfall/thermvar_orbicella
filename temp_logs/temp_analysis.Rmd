@@ -1,0 +1,110 @@
+---
+title: "Temperature data"
+author: "Nicola G. Kriefall"
+date: "6/30/2021"
+output:
+ rmarkdown::html_document:
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+    highlight: haddock
+    number_sections: true
+---
+
+# Setup
+
+```{r not public, include=FALSE}
+setwd("/Volumes/GoogleDrive/My Drive/thermvar_microbes_master/thermvar_orbicella/temp_logs")
+```
+
+```{r libraries}
+library(ggplot2)
+library(lubridate)
+library(cowplot)
+```
+
+```{r data}
+temp.all <- read.csv("hobo_all.csv")
+```
+
+## Date cleaning
+
+```{r}
+str(temp.all)
+
+#ydm_hms(temp.all$Date.Time..EST.)
+
+#me trying to get R to understand my date formatting
+temp.all$date <- paste(temp.all$year,"/",temp.all$mon,"/",temp.all$day)
+temp.all$date <- gsub(' ', '', temp.all$date)
+temp.all$date <- as.Date(temp.all$date,format="%Y/%m/%d")
+str(temp.all)
+```
+
+# Processing & plotting data
+
+## Plot with all data
+
+```{r}
+temp.all$treatment <- factor(temp.all$treatment,levels=c("var","con"))
+ggplot(data=temp.all,aes(x=log_number,y=temp,color=treatment,group=treatment))+
+  geom_line()+
+  scale_color_manual(values=c("#D66982","#B9C184"),labels=c("TV","Ctrl"))+
+  theme_bw()
+
+ggsave("temp.all.pdf")
+```
+
+## Data subset - just 90 day acclimation
+
+```{r}
+temp.90 <- subset(temp.all,log_number>=760&log_number<=9844) #should be approximately 10am on 8/21, then midnight on 11/24 (might update later)
+ggplot(data=temp.90,aes(x=log_number,y=temp,color=treatment,group=treatment))+
+  geom_line()+
+  #geom_hline(yintercept=25.67,linetype=2)+
+  theme_bw()+
+  scale_color_manual(values=c("#D66982","#B9C184"),labels=c("TV","Ctrl"))
+  #scale_linetype_manual(values=c("solid","dotted"))
+
+ggsave("tvm.temp.90d.pdf",height=3,width=8)
+```
+
+## Data subset - just ramping up
+
+```{r}
+temp.ramp <- subset(temp.all,log_number<760) 
+ggplot(data=temp.ramp,aes(x=log_number,y=temp,color=treatment,group=treatment))+
+  geom_line()+
+  #geom_hline(yintercept=25.67,linetype=2)+
+  theme_bw()+
+  scale_color_manual(values=c("#D66982","#B9C184"),labels=c("TV","Ctrl"))
+  #scale_linetype_manual(values=c("solid","dotted"))
+
+ggsave("tvm.temp.ramp.pdf",height=2,width=3)
+```
+
+## Data subset - heat
+
+```{r}
+temp.heat <- subset(temp.all,log_number>9844) 
+temp.heat.tv <- subset(temp.heat,treatment=="var") 
+ggplot(data=temp.heat.tv,aes(x=log_number,y=temp,color=treatment,group=treatment))+
+  geom_line()+
+  #geom_hline(yintercept=25.67,linetype=2)+
+  theme_bw()+
+  scale_color_manual(values=c("#ECA313"),labels=c("Heat"))
+  #scale_linetype_manual(values=c("solid","dotted"))
+
+ggsave("tvm.temp.heat.pdf",height=2,width=3)
+
+Averages per treatment
+
+```{r}
+temp.var <- subset(temp.90,treatment=="var")
+summary(temp.var$temp) #25.73
+
+temp.con <- subset(temp.90,treatment=="con")
+summary(temp.con$temp) #25.67
+```
+
+

@@ -1,0 +1,281 @@
+---
+title: "Therm_var Orbicella/microbes 16S diversity analysis"
+author: "Nicola G. Kriefall"
+date: "09/11/22"
+output:
+ rmarkdown::html_document:
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+    highlight: haddock
+    number_sections: true
+---
+
+# Setup
+
+## Packages
+
+```{r}
+library(cowplot)
+library(ggplot2)
+library(phyloseq)
+library("Rmisc")
+library(car)
+
+setwd("/Volumes/GoogleDrive/My Drive/thermvar_microbes_master/thermvar_orbicella/tvm_16s/02.diversity")
+```
+
+## Read in data
+
+Be careful, I tried different data inputs [i.e. not rare, or rare]
+
+```{r}
+#ps.clean <- readRDS("../01.make.asv.table/tvm.ps.cleaner.rds")
+#ps.clean
+
+ps.clean <- readRDS("../01.make.asv.table/tvm.ps.cleaner.rare.rds")
+
+samdf <- data.frame(ps.clean@sam_data)
+```
+
+## Calculate metrics
+
+[Notes from phyloseq author](https://rdrr.io/bioc/phyloseq/man/estimate_richness.html)
+Visualize alpha-diversity - Should be done on raw, untrimmed dataset
+
+```{r generate div metrics, eval=F}
+df <- data.frame(estimate_richness(ps.clean, split=TRUE, measures=c("Shannon","InvSimpson","Observed")))
+
+df$sample_name <- rownames(df)
+df$sample_name <- gsub(".","-",df$sample_name,fixed=TRUE)
+rownames(df) <- df$sample_name
+df.div <- merge(df,samdf,by="sample_name") #add sample data
+
+#shannon diversity divided by species richness
+df.div$even <- df.div$Shannon/(log(df.div$Observed))
+#write.csv(df.div,file="tvm.df.diversity.cleaner.csv")
+#write.csv(df.div,file="tvm.df.diversity.cleaner.rare.csv")
+
+#reorder time point
+df.div$timepoint <- factor(df.div$timepoint,levels=c("preheat","postheat"))
+
+#separate species
+df.div.fra <- subset(df.div,host_species=="franksi")
+df.div.fav <- subset(df.div,host_species=="faveolata")
+```
+
+Re-read in data, skipping the two sections above
+
+```{r re-read in *start here*}
+df.div <- read.csv("tvm.df.diversity.cleaner.csv")
+#df.div <- read.csv("fl16s.df.diversity_rare.csv")
+
+df.div$timepoint <- gsub("preheat","Pre-heat",df.div$timepoint)
+df.div$timepoint <- gsub("postheat","Heat",df.div$timepoint)
+df.div$timepoint <- factor(df.div$timepoint,levels=c("Pre-heat","Heat"))
+
+df.div$host_species <- gsub("franksi","O. franksi",df.div$host_species)
+df.div$host_species <- gsub("faveolata","O. faveolata",df.div$host_species)
+
+df.div.fav <- subset(df.div,host_species=="O. faveolata")
+df.div.fra <- subset(df.div,host_species=="O. franksi")
+```
+
+# Analyzing alpha metrics {.tabset}
+
+## Shannon
+
+```{r shannon plots}
+##checking color blind things:
+#library(colorBlindness)
+#cvdPlot(gg.div)
+
+library("Rmisc")
+library("ggpubr")
+
+df.div.se <- summarySE(data=df.div,measurevar="Shannon",groupvars=c("treat_time","treatment","timepoint","host_species"))
+
+##dot & error bars
+ggplot(df.div,aes(x=timepoint,y=Shannon,shape=treatment,fill=treatment))+
+  geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_errorbar(data=df.div.se,aes(ymin=Shannon-se,ymax=Shannon+se),position=position_dodge(width=0.5),width=0.2)+
+  geom_point(data=df.div.se,aes(x=timepoint,y=Shannon),position=position_dodge(width=0.5),size=2)+
+  facet_grid(host_species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  xlab("")+
+  ylab("Shannon index (bact. diversity)")+
+  ggtitle("Rarefied")
+
+ggsave("gg.tvm.shannon.rare.pdf",width=3,height=3.5)
+
+##boxplot
+# ggplot(df.div,aes(x=timepoint,y=Observed,color=treatment,shape=treat_time))+
+#   geom_boxplot(outlier.shape=NA)+
+#   geom_jitter(position = position_jitterdodge())+
+#   facet_grid(host_species~.)+
+#   scale_color_manual(values=c("#B9C184","#D66982"))+
+#   scale_shape_manual(values=c(21,24,16,17))+
+#   theme_cowplot()+
+#   xlab("")+
+#   ylab("ASV richness")
+
+#ggsave(gg.sh.sids.yr,file="gg.sids.shannon.pdf",width=3.5,height=4)
+```
+
+### Shannon stats
+
+```{r shannon stats}
+shapiro.test(df.div.fra$Shannon)
+shapiro.test(log(df.div.fav$Shannon))
+leveneTest(log(df.div.fav$Shannon),group=df.div.fav$treatment)
+leveneTest(df.div.fra$Shannon,group=df.div.fra$treatment)
+
+a.fav <- aov(log(Shannon)~treatment*timepoint,data=df.div.fav)
+summary(a.fav)
+#                     Df Sum Sq Mean Sq F value Pr(>F)  
+# treatment            1  0.302   0.302   0.372  0.551  
+# timepoint            1  6.624   6.624   8.166  0.012 *
+# treatment:timepoint  1  0.446   0.446   0.549  0.470  
+# Residuals           15 12.168   0.811                 
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+TukeyHSD(a.fav) #meh
+
+a.fra <- aov(Shannon~treatment*timepoint, data=df.div.fra)
+summary(a.fra) #ns
+
+TukeyHSD(a.fra) #ns
+```
+
+## Richness
+
+```{r richness plots}
+##checking color blind things:
+#library(colorBlindness)
+#cvdPlot(gg.div)
+
+library("Rmisc")
+library("ggpubr")
+
+df.div.se <- summarySE(data=df.div,measurevar="Observed",groupvars=c("treat_time","treatment","timepoint","host_species"))
+
+##dot & error bars
+ggplot(df.div,aes(x=timepoint,y=Observed,shape=treatment,fill=treatment))+
+  geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_errorbar(data=df.div.se,aes(ymin=Observed-se,ymax=Observed+se),position=position_dodge(width=0.5),width=0.2)+
+  geom_point(data=df.div.se,aes(x=timepoint,y=Observed),position=position_dodge(width=0.5),size=2)+
+  facet_grid(host_species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  xlab("")+
+  ylab("ASV richness")+
+  ggtitle("Rarefied")
+
+#ggsave("gg.tvm.observed.rare.pdf",width=3,height=3.5)
+
+##boxplot
+# ggplot(df.div,aes(x=timepoint,y=Observed,color=treatment,shape=treat_time))+
+#   geom_boxplot(outlier.shape=NA)+
+#   geom_jitter(position = position_jitterdodge())+
+#   facet_grid(host_species~.)+
+#   scale_color_manual(values=c("#B9C184","#D66982"))+
+#   scale_shape_manual(values=c(21,24,16,17))+
+#   theme_cowplot()+
+#   xlab("")+
+#   ylab("ASV richness")
+
+#ggsave(gg.sh.sids.yr,file="gg.sids.shannon.pdf",width=3.5,height=4)
+```
+
+### Richness stats
+
+```{r observed stats}
+shapiro.test(log(df.div.fra$Observed))
+shapiro.test(log(df.div.fav$Observed))
+leveneTest(df.div.fav$Observed,group=df.div.fav$treatment)
+leveneTest(df.div.fra$Observed,group=df.div.fra$treatment)
+
+o.fav <- aov(log(Observed)~treatment*timepoint,data=df.div.fav)
+summary(o.fav)
+#                     Df Sum Sq Mean Sq F value Pr(>F)  
+# treatment            1  0.245   0.245   0.354 0.5608  
+# timepoint            1  5.474   5.474   7.901 0.0132 *
+# treatment:timepoint  1  0.289   0.289   0.417 0.5283  
+# Residuals           15 10.392   0.693                 
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+o.fra <- aov(log(Observed)~treatment*timepoint, data=df.div.fra)
+summary(o.fra) #ns
+```
+
+## Evenness
+
+```{r evenness plots}
+##checking color blind things:
+#library(colorBlindness)
+#cvdPlot(gg.div)
+
+library("Rmisc")
+library("ggpubr")
+
+df.div.se <- summarySE(data=df.div,measurevar="even",groupvars=c("treat_time","treatment","timepoint","host_species"))
+
+##dot & error bars
+ggplot(df.div,aes(x=timepoint,y=even,shape=treatment,fill=treatment))+
+  geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_errorbar(data=df.div.se,aes(ymin=even-se,ymax=even+se),position=position_dodge(width=0.5),width=0.2)+
+  geom_point(data=df.div.se,aes(x=timepoint,y=even),position=position_dodge(width=0.5),size=2)+
+  facet_grid(host_species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  xlab("")+
+  ylab("Evenness")+
+  ggtitle("Rarefied")
+
+#ggsave("gg.tvm.even.rare.pdf",width=3,height=3.5)
+
+##boxplot
+# ggplot(df.div,aes(x=timepoint,y=even,color=treatment,shape=treat_time))+
+#   geom_boxplot(outlier.shape=NA)+
+#   geom_jitter(position = position_jitterdodge())+
+#   facet_grid(host_species~.)+
+#   scale_color_manual(values=c("#B9C184","#D66982"))+
+#   scale_shape_manual(values=c(21,24,16,17))+
+#   theme_cowplot()+
+#   xlab("")+
+#   ylab("ASV richness")
+
+#ggsave(gg.sh.sids.yr,file="gg.sids.shannon.pdf",width=3.5,height=4)
+```
+
+### Richness stats
+
+```{r even stats}
+shapiro.test(log(df.div.fra$even))
+shapiro.test(log(df.div.fav$even))
+leveneTest(df.div.fav$even,group=df.div.fav$treatment)
+leveneTest(df.div.fra$even,group=df.div.fra$treatment)
+
+o.fav <- aov(log(even)~treatment*timepoint,data=df.div.fav)
+summary(o.fav)
+#                     Df Sum Sq Mean Sq F value Pr(>F)  
+# treatment            1  0.245   0.245   0.354 0.5608  
+# timepoint            1  5.474   5.474   7.901 0.0132 *
+# treatment:timepoint  1  0.289   0.289   0.417 0.5283  
+# Residuals           15 10.392   0.693                 
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+o.fra <- aov(log(even)~treatment*timepoint, data=df.div.fra)
+summary(o.fra) #ns
+```
+
+
+
+
+

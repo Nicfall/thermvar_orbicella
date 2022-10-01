@@ -1,0 +1,308 @@
+---
+title: "Therm var microbes/Orbicella 16s community composition"
+author: "Nicola G. Kriefall"
+date: "09/19/22"
+output:
+ rmarkdown::html_document:
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+    highlight: haddock
+    number_sections: true
+---
+
+# Setup
+
+```{r packages used composition}
+library(stringr)
+library(ggpubr)
+library(vegan)
+library(cowplot)
+library(ggplot2)
+library(tidyverse)
+library(phyloseq)
+library(funfuns)
+```
+
+Read in data
+
+```{r read in data}
+setwd("/Volumes/GoogleDrive/My Drive/thermvar_microbes_master/thermvar_orbicella/tvm_16s/03.comm.comp")
+
+ps.clean <- readRDS("../01.make.asv.table/tvm.ps.cleaner.rds")
+
+#made these below:
+# ps.fam <- readRDS("ps.asvsnamed.fam.RDS")
+# ps.cla <- readRDS("ps.asvsnamed.cla.RDS")
+saveRDS(ps.clean,"ps.asvsnamed.cleaner.RDS")
+```
+
+Rename ASVs to be more informative
+
+(ran once then skip)
+
+```{r rename ASVs, eval=F}
+tax <- as.data.frame(ps.clean@tax_table@.Data)
+
+tax.clean <- data.frame(row.names = row.names(tax),
+                        Kingdom = str_replace(tax[,1], "D_0__",""),
+                        Phylum = str_replace(tax[,2], "D_1__",""),
+                        Class = str_replace(tax[,3], "D_2__",""),
+                        Order = str_replace(tax[,4], "D_3__",""),
+                        Family = str_replace(tax[,5], "D_4__",""),
+                        Genus = str_replace(tax[,6], "D_5__",""),
+                        Species = str_replace(tax[,7], "D_6__",""),
+                        stringsAsFactors = FALSE)
+tax.clean[is.na(tax.clean)] <- ""
+
+for (i in 1:7){ tax.clean[,i] <- as.character(tax.clean[,i])}
+####### Fill holes in the tax table
+tax.clean[is.na(tax.clean)] <- ""
+for (i in 1:nrow(tax.clean)){
+  if (tax.clean[i,2] == ""){
+    kingdom <- paste("Kingdom_", tax.clean[i,1], sep = "")
+    tax.clean[i, 2:7] <- kingdom
+  } else if (tax.clean[i,3] == ""){
+    phylum <- paste("Phylum_", tax.clean[i,2], sep = "")
+    tax.clean[i, 3:7] <- phylum
+  } else if (tax.clean[i,4] == ""){
+    class <- paste("Class_", tax.clean[i,3], sep = "")
+    tax.clean[i, 4:7] <- class
+  } else if (tax.clean[i,5] == ""){
+    order <- paste("Order_", tax.clean[i,4], sep = "")
+    tax.clean[i, 5:7] <- order
+  } else if (tax.clean[i,6] == ""){
+    family <- paste("Family_", tax.clean[i,5], sep = "")
+    tax.clean[i, 6:7] <- family
+  } else if (tax.clean[i,7] == ""){
+    tax.clean$Species[i] <- paste("Genus",tax.clean$Genus[i], sep = "_")
+  }
+}
+
+tax_table(ps.clean) <- as.matrix(tax.clean)
+```
+
+Saving
+
+```{r save renamed files, eval=FALSE}
+#saveRDS(ps.clean,"ps.asvsnamed.cleaner.RDS")
+```
+
+# Pcoa
+
+## CLR{.tabset}
+
+Subset samples
+
+```{r}
+##option to clr transform here or not
+ps.clr <-  microbiome::transform(ps.clean,"clr")
+
+ps.clr.fra <- subset_samples(ps.clr,host_species=="franksi")
+ps.clr.fav <- subset_samples(ps.clr,host_species=="faveolata")
+```
+
+### Favs
+
+```{r}
+##clr transformed
+ord.clr.fav <- ordinate(ps.clr.fav, "PCoA", "euclidean")
+
+plot_ordination(ps.clr.fav, ord.clr.fav,color="treatment",shape="treatment")+
+  stat_ellipse()+
+  scale_color_manual(values=c("#B4BD93","#C7522B"))+
+  theme_cowplot()
+cvdPlot(plot)
+
+plot_ordination(ps.clr.fav, ord.clr.fav,color="timepoint",shape="timepoint")+
+  stat_ellipse()
+```
+
+### Franks
+
+```{r}
+##clr transformed
+ord.clr.fra <- ordinate(ps.clr.fra, "PCoA", "euclidean")
+
+plot_ordination(ps.clr.fra, ord.clr.fra,color="treatment",shape="treatment")+
+  stat_ellipse()
+
+plot_ordination(ps.clr.fra, ord.clr.fra,color="timepoint",shape="timepoint")+
+  stat_ellipse()
+```
+
+## Relative abundance
+
+### Franks
+
+```{r pcoa rel franks}
+ps.rel <- transform_sample_counts(ps.clean, function(x) x / sum(x))
+ps.rel.fra <- subset_samples(ps.rel,host_species=="franksi")
+
+ord.rel.fra <- ordinate(ps.rel.fra, "PCoA", "euclidean")
+
+plot.fra <- plot_ordination(ps.rel.fra, ord.rel.fra,color="treatment",shape="timepoint")+
+  stat_ellipse()+
+  scale_color_manual(values=c("#B4BD93","#C7522B"))+
+  #scale_fill_manual(values=c("#B4BD93","#C7522B"))+
+  scale_shape_manual(values=c(21,24))+
+  #scale_fill_manual(values=c("white","gray"))+
+  theme_cowplot()
+plot.fra
+
+plot.rel.fra.data <- plot.fra[["data"]]
+
+ggplot(plot.rel.fra.data,aes(x=Axis.1,y=Axis.2,shape=treat_time,fill=treat_time,linetype=timepoint))+
+  geom_point()+
+  stat_ellipse(aes(linetype=timepoint))+
+  scale_fill_manual(name="Treat",values=c("#0085A7","white","#ECA313","white"),labels=c("Ctrl heat","Ctrl pre","TV heat","TV pre"))+
+  scale_shape_manual(name="Treat",values=c(21,21,24,24),labels=c("Ctrl heat","Ctrl pre","TV heat","TV pre"))+
+  scale_linetype_manual(values=c("dashed","dotted"),labels=c("Heat","Pre-heat"))+
+  #scale_color_manual(name="Treat",values=c("ECA313","#0085A7"))+
+  ggtitle("Rel. - Ofra")+
+  xlab("Axis 1 (23.8%)")+
+  ylab("Axis 2 (18.7%)")+
+  theme_cowplot()
+
+ggsave("pca.rel.fra.pdf",height=2.5,width=3.5)
+
+#cvdPlot(plot.fra.data)
+```
+
+### Favs
+
+```{r}
+ps.rel <- transform_sample_counts(ps.clean, function(x) x / sum(x))
+ps.rel.fav <- subset_samples(ps.rel,host_species=="faveolata")
+
+ord.rel.fav <- ordinate(ps.rel.fav, "PCoA", "euclidean")
+
+plot.fav <- plot_ordination(ps.rel.fav, ord.rel.fav,color="treatment",shape="timepoint")+
+  stat_ellipse()+
+  scale_color_manual(values=c("#B4BD93","#C7522B"))+
+  #scale_fill_manual(values=c("#B4BD93","#C7522B"))+
+  scale_shape_manual(values=c(21,24))+
+  #scale_fill_manual(values=c("white","gray"))+
+  theme_cowplot()
+plot.fav
+
+plot.rel.fav.data <- plot.fav[["data"]]
+
+ggplot(plot.rel.fav.data,aes(x=Axis.1,y=Axis.2,shape=treat_time,fill=treat_time,linetype=timepoint))+
+  geom_point()+
+  stat_ellipse(aes(linetype=timepoint))+
+  scale_fill_manual(name="Treat",values=c("#0085A7","white","#ECA313","white"),labels=c("Ctrl heat","Ctrl pre","TV heat","TV pre"))+
+  scale_shape_manual(name="Treat",values=c(21,21,24,24),labels=c("Ctrl heat","Ctrl pre","TV heat","TV pre"))+
+  scale_linetype_manual(values=c("dashed","dotted"),labels=c("Heat","Pre-heat"))+
+  #scale_color_manual(name="Treat",values=c("ECA313","#0085A7"))+
+  ggtitle("Rel. - Ofav")+
+  xlab("Axis 1 (22.2%)")+
+  ylab("Axis 2 (15.4%)")+
+  theme_cowplot()
+
+ggsave("pca.rel.fav.pdf",height=2.5,width=3.5)
+
+#cvdPlot(plot.fav.data)
+```
+
+# Stats
+
+## Franks
+
+```{r subset franks for stats}
+##for treatment comparisons
+ps.rel.fra.pre <- subset_samples(ps.rel.fra,timepoint=="preheat")
+ps.rel.fra.pos <- subset_samples(ps.rel.fra,timepoint=="postheat")
+
+##for tiempoint comparisons
+ps.rel.fra.con <- subset_samples(ps.rel.fra,treatment=="control")
+ps.rel.fra.thr <- subset_samples(ps.rel.fra,treatment=="thermvar")
+```
+
+### By treatment
+
+#### Pre-heat
+
+```{r}
+##pre-heat
+seq.rel.fra.pre <- data.frame(ps.rel.fra.pre@otu_table)
+samdf.rel.fra.pre <- data.frame(ps.rel.fra.pre@sam_data)
+
+dist.rel.fra.pre <- vegdist(seq.rel.fra.pre, method="euclidean")
+
+bet.rel.fra.pre <- betadisper(dist.rel.fra.pre,samdf.rel.fra.pre$treatment)
+#anova(bet.rad.uk2i)
+permutest(bet.rel.fra.pre,permutations=999) #ns
+
+plot(bet.rel.fra.pre) #ns
+
+adonis2(dist.rel.fra.pre ~ treatment, data=samdf.rel.fra.pre, permutations=999) #ns
+```
+
+#### Post-heat
+
+```{r}
+seq.rel.fra.pos <- data.frame(ps.rel.fra.pos@otu_table)
+samdf.rel.fra.pos <- data.frame(ps.rel.fra.pos@sam_data)
+
+dist.rel.fra.pos <- vegdist(seq.rel.fra.pos, method="euclidean")
+
+bet.rel.fra.pos <- betadisper(dist.rel.fra.pos,samdf.rel.fra.pos$treatment)
+#anova(bet.rad.uk2i)
+permutest(bet.rel.fra.pos,permutations=999) #ns
+
+plot(bet.rel.fra.pos) #ns
+
+adonis2(dist.rel.fra.pos ~ treatment, data=samdf.rel.fra.pos, permutations=999)
+#           Df SumOfSqs      R2      F Pr(>F)  
+# treatment  1  0.17846 0.15688 1.4886  0.075 .
+# Residual   8  0.95907 0.84312                
+# Total      9  1.13753 1.00000                
+```
+
+### By timepoint
+
+#### Control
+
+```{r}
+seq.rel.fra.con <- data.frame(ps.rel.fra.con@otu_table)
+samdf.rel.fra.con <- data.frame(ps.rel.fra.con@sam_data)
+
+dist.rel.fra.con <- vegdist(seq.rel.fra.con, method="euclidean")
+
+bet.rel.fra.con <- betadisper(dist.rel.fra.con,samdf.rel.fra.con$timepoint)
+#anova(bet.rad.uk2i)
+permutest(bet.rel.fra.con,permutations=999) #ns
+
+plot(bet.rel.fra.con) #ns
+
+adonis2(dist.rel.fra.con ~ timepoint, data=samdf.rel.fra.con, permutations=999) #ns
+```
+
+#### Thermvar
+
+```{r}
+seq.rel.fra.thr <- data.frame(ps.rel.fra.thr@otu_table)
+samdf.rel.fra.thr <- data.frame(ps.rel.fra.thr@sam_data)
+
+dist.rel.fra.thr <- vegdist(seq.rel.fra.thr, method="euclidean")
+
+bet.rel.fra.thr <- betadisper(dist.rel.fra.thr,samdf.rel.fra.thr$timepoint)
+#anova(bet.rad.uk2i)
+permutest(bet.rel.fra.thr,permutations=999) #ns
+
+plot(bet.rel.fra.thr) #ns
+
+adonis2(dist.rel.fra.thr ~ timepoint, data=samdf.rel.fra.thr, permutations=999) #ns
+#           Df SumOfSqs     R2      F Pr(>F)  
+# timepoint  1  0.13031 0.1819 1.7787  0.081 .
+# Residual   8  0.58607 0.8181                
+# Total      9  0.71638 1.0000                
+```
+
+
+
+
+
+
+
