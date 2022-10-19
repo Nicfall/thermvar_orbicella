@@ -5,7 +5,767 @@ date: "10/1/2022"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-setwd("/Volumes/GoogleDrive/My Drive/thermvar_microbes_master/thermvar_orbicella/tvm_phys")
+# Setup
+
+```{r}
+library(ggplot2)
+library("Rmisc")
+library(dplyr)
+library(cowplot)
+library("car")
 ```
+
+```{r setup}
+setwd("/Volumes/GoogleDrive/My Drive/thermvar_microbes_master/thermvar_orbicella/tvm_phys")
+phys.all <- read.csv("Thermvar_physdata.csv")
+
+str(phys.all)
+phys.all$Timepoint <- factor(phys.all$Timepoint,levels=c("preheat","postheat"))
+
+phys.all$Species <- gsub("frank","O. franksi",phys.all$Species)
+phys.all$Species <- gsub("fav","O. faveolata",phys.all$Species)
+```
+
+# Symbiont density
+
+Some info [here](https://www.abcam.com/protocols/counting-cells-using-a-haemocytometer). Basically, cells/µl would be count/1mm^2*0.1mm, but then multiply by another 1,000 to get cells/ml. 
+
+Formula: (average count * 10,000 * blastvolume)/surf_area
+
+## Plot!
+
+```{r}
+phys.geno.syms <- phys.all %>% group_by(Genotype,Species,Treatment,Timepoint) %>%
+  summarize_at('syms_cm2',mean,na.rm=T)
+phys.geno.syms
+
+phys.geno.syms.se <- summarySE(data=phys.geno.syms,measurevar="syms_cm2",groupvars=c("Treatment","Timepoint","Species"))
+
+##dot & error bars
+ggplot(phys.geno.syms,aes(x=Timepoint,y=syms_cm2,shape=Treatment,fill=Treatment))+
+  geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_errorbar(data=phys.geno.syms.se,aes(ymin=syms_cm2-se,ymax=syms_cm2+se),position=position_dodge(width=0.5),width=0.2)+
+  geom_point(data=phys.geno.syms.se,aes(x=Timepoint,y=syms_cm2),position=position_dodge(width=0.5),size=2)+
+  facet_grid(Species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()
+
+#all
+phys.all.se <- summarySE(data=phys.all,measurevar="syms_cm2",groupvars=c("Treatment","Timepoint","Species"),na.rm=T)
+
+##dot & error bars
+ggplot(phys.all,aes(x=Timepoint,y=syms_cm2,shape=Treatment,fill=Treatment))+
+  geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_errorbar(data=phys.all.se,aes(ymin=syms_cm2-se,ymax=syms_cm2+se),position=position_dodge(width=0.5),width=0.2)+
+  geom_point(data=phys.all.se,aes(x=Timepoint,y=syms_cm2),position=position_dodge(width=0.5),size=2)+
+  facet_grid(Species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()
+```
+
+## Density stats
+
+```{r}
+leveneTest(syms_cm2~Treatment,data=phys.geno.syms) #ns
+shapiro.test(log(phys.geno.syms$syms_cm2)) #ns
+
+aov.dens <- aov(log(syms_cm2)~Treatment*Species*Timepoint,data=phys.geno.syms)
+summary(aov.dens) 
+#                             Df Sum Sq Mean Sq F value Pr(>F)  
+# Treatment                    1  0.111  0.1113   0.814 0.3736  
+# Species                      1  1.001  1.0015   7.328 0.0108 *
+# Timepoint                    1  0.167  0.1673   1.224 0.2767  
+# Treatment:Species            1  0.093  0.0933   0.683 0.4148  
+# Treatment:Timepoint          1  0.055  0.0551   0.404 0.5298  
+# Species:Timepoint            1  0.033  0.0335   0.245 0.6240  
+# Treatment:Species:Timepoint  1  0.000  0.0001   0.000 0.9840  
+# Residuals                   32  4.373  0.1367                 
+
+##franks
+phys.geno.syms.fra <- subset(phys.geno.syms,Species=="O. franksi")
+phys.geno.syms.fra.pre <- subset(phys.geno.syms.fra,Timepoint=="preheat")
+phys.geno.syms.fra.pos <- subset(phys.geno.syms.fra,Timepoint=="postheat")
+
+##pre
+leveneTest(syms_cm2~Treatment,data=phys.geno.syms.fra.pre) #ns
+shapiro.test(log(phys.geno.syms.fra.pre$syms_cm2)) #ns
+
+aov.dens.fra.pre <- aov(log(syms_cm2)~Treatment,data=phys.geno.syms.fra.pre)
+summary(aov.dens.fra.pre) #ns
+```
+
+# Color
+
+## Red channel only
+
+```{r}
+phys.less <- phys.all[complete.cases(phys.all$red_chan_avg_t4),]
+
+phys.less.geno <- phys.less %>% group_by(Genotype,Species,Treatment,Timepoint) %>%
+  summarize_at(c('red_chan_avg_t3','red_chan_avg_t4'),mean,na.rm=T)
+phys.less.geno.df <- data.frame(phys.less.geno)
+
+phys.less.geno.time <- reshape(phys.less.geno.df,varying=c('red_chan_avg_t3','red_chan_avg_t4'),v.names='red_chan',timevar='sampling',direction="long")
+phys.less.geno.time$sampling <- as.factor(phys.less.geno.time$sampling)
+
+phys.less.geno.time.se <- summarySE(data=phys.less.geno.time,measurevar="red_chan",groupvars=c("Treatment","Species","sampling"))
+
+gg.red <- ggplot(phys.less.geno.time,aes(x=sampling,y=red_chan,shape=Treatment,fill=Treatment))+
+  geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_errorbar(data=phys.less.geno.time.se,aes(ymin=red_chan-se,ymax=red_chan+se),position=position_dodge(width=0.5),width=0.2)+
+  geom_point(data=phys.less.geno.time.se,aes(x=sampling,y=red_chan),position=position_dodge(width=0.5),size=2)+
+  facet_grid(.~Species)+
+  scale_fill_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treatment",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  xlab("")+
+  ylab("Red intensity")+
+  ggtitle("")+
+  scale_x_discrete(labels=c("Pre-heat","Heat"))+
+  theme(axis.text.x=element_text(angle=45,hjust=1))
+```
+
+### Red % change
+
+```{r}
+phys.t4 <- phys.all[complete.cases(phys.all$red_chan_avg_t4),]
+phys.t4$red_change <- ((phys.t4$red_chan_avg_t4-phys.t4$red_chan_avg_t3)/phys.t4$red_chan_avg_t3)*100
+
+phys.t4.geno <- phys.t4 %>% group_by(Genotype,Species,Treatment) %>%
+  summarize_at('red_change',mean,na.rm=T)
+phys.t4.geno
+
+phys.t4.geno.se <- summarySE(data=phys.t4.geno,measurevar="red_change",groupvars=c("Treatment","Species"))
+
+##dot & error bars
+gg.red <- ggplot(phys.t4.geno,aes(x=Treatment,y=red_change,shape=Treatment,fill=Treatment))+
+  geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_line(aes(group=Genotype),color="gray")+
+  geom_errorbar(data=phys.t4.geno.se,aes(ymin=red_change-se,ymax=red_change+se),position=position_dodge(width=0.5),width=0.1)+
+  geom_point(data=phys.t4.geno.se,aes(x=Treatment,y=red_change),position=position_dodge(width=0.5),size=2)+
+  facet_grid(Species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  guides(fill="none",shape="none")+
+  scale_x_discrete(labels=c("Ctrl","TV"))
+gg.red
+```
+
+## Total color intensity
+
+```{r}
+color <- read.csv("color_data - Sheet1.csv")
+
+color %>% group_by(X) %>%
+  mutate()
+phys.t4.geno
+
+genos <- c(unique(color$X))
+out=NULL
+
+for (nub in genos){
+  #print(nub)
+  df.nub <- subset(color,X==nub)
+  maths <- numcolwise(sum)(df.nub)
+  row.names(maths) <- c(nub)
+  out <- rbind(out,maths)
+}
+
+out$avg_t3 <- rowMeans(out[,31:40])
+out$avg_t4 <- rowMeans(out[,41:50])
+
+int.df <- out[complete.cases(out$avg_t4),]
+int.df <- int.df[,51:52]
+```
+
+### % change
+
+```{r}
+int.df$int.change <- ((int.df$avg_t4-int.df$avg_t3)/int.df$avg_t3)*100
+int.df$Nub <- row.names(int.df)
+phys.int <- merge.data.frame(int.df,phys.all,by="Nub")
+
+phys.int.geno <- phys.int %>% group_by(Genotype,Species,Treatment) %>%
+  summarize_at('int.change',mean,na.rm=T)
+phys.int.geno
+
+phys.int.geno.se <- summarySE(data=phys.int.geno,measurevar="int.change",groupvars=c("Treatment","Species"))
+
+##dot & error bars
+ggplot(phys.int.geno,aes(x=Treatment,y=int.change,shape=Treatment,fill=Treatment))+
+  #geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_line(aes(group=Genotype),color="gray")+
+  geom_point(alpha=0.5)+
+  geom_errorbar(data=phys.int.geno.se,aes(ymin=int.change-se,ymax=int.change+se),position=position_dodge(width=0.5),width=0.15)+
+  geom_point(data=phys.int.geno.se,aes(x=Treatment,y=int.change),position=position_dodge(width=0.5),size=2.5)+
+  facet_grid(Species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  ylab("% change in color intensity (paling)")+
+  guides(fill="none",shape="none")+
+  scale_x_discrete(labels=c("Control","TV"))
+
+#ggsave("color.int.pdf",width=3,height=3.5)
+```
+
+## Color stats
+
+### Red only
+
+```{r}
+##both species
+phys.t4.geno$Treatment <- as.factor(phys.t4.geno$Treatment)
+str(phys.t4.geno)
+
+leveneTest(red_change~Treatment,data=phys.t4.geno) #ns
+shapiro.test(phys.t4.geno$red_change) #sig
+bestNormalize(phys.t4.geno$red_change,loo=T)
+red.ord <- orderNorm(phys.t4.geno$red_change)
+phys.t4.geno$red.ord <- red.ord[["x.t"]]
+shapiro.test(phys.t4.geno$red.ord) #ns
+
+aov.red <- aov(red.ord~Treatment*Species,data=phys.t4.geno)
+summary(aov.red) 
+#                   Df Sum Sq Mean Sq F value Pr(>F)  
+# Treatment          1  5.635   5.635   7.057 0.0172 *
+# Species            1  0.319   0.319   0.400 0.5363  
+# Treatment:Species  1  0.041   0.041   0.051 0.8244  
+# Residuals         16 12.776   0.799                 
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+##franks
+phys.t4.geno.fra <- subset(phys.t4.geno,Species=="O. franksi")
+str(phys.t4.geno.fra)
+phys.t4.geno.fra$Treatment <- as.factor(phys.t4.geno.fra$Treatment)
+str(phys.t4.geno.fra)
+
+leveneTest(red_change~Treatment,data=phys.t4.geno.fra) #ns
+shapiro.test(phys.t4.geno.fra$red_change) #ns
+
+aov.red.fra <- aov(red_change~Treatment,data=phys.t4.geno.fra)
+summary(aov.red.fra) #p = 0.066
+#             Df Sum Sq Mean Sq F value Pr(>F)  
+# Treatment    1   1071  1071.1   4.512 0.0664 .
+# Residuals    8   1899   237.4                 
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+##favs
+phys.t4.geno.fav <- subset(phys.t4.geno,Species=="O. faveolata")
+str(phys.t4.geno.fav)
+phys.t4.geno.fav$Treatment <- as.factor(phys.t4.geno.fav$Treatment)
+str(phys.t4.geno.fav)
+
+leveneTest(red_change~Treatment,data=phys.t4.geno.fav) #ns
+shapiro.test(phys.t4.geno.fav$red_change) #sig
+min(phys.t4.geno.fav$red_change)
+phys.t4.geno.fav$red.cha1 <- phys.t4.geno.fav$red_change+3
+shapiro.test(log(phys.t4.geno.fav$red.cha1)) #ns
+
+aov.red.fav <- aov(log(red.cha1)~Treatment,data=phys.t4.geno.fav)
+summary(aov.red.fav)
+#             Df Sum Sq Mean Sq F value Pr(>F)
+# Treatment    1  0.859  0.8591   0.517  0.493
+# Residuals    8 13.293  1.6616               
+```
+
+### All color
+
+```{r}
+##both species
+phys.int.geno$Treatment <- as.factor(phys.int.geno$Treatment)
+str(phys.int.geno)
+
+leveneTest(int.change~Treatment,data=phys.int.geno) #ns
+shapiro.test(phys.int.geno$int.change) #ns
+
+aov.int <- aov(int.change~Treatment*Species,data=phys.int.geno)
+summary(aov.int) 
+#                   Df Sum Sq Mean Sq F value Pr(>F)  
+# Treatment          1   2563  2563.4   6.230 0.0239 *
+# Species            1    132   131.8   0.320 0.5793  
+# Treatment:Species  1      5     5.1   0.012 0.9129  
+# Residuals         16   6584   411.5                 
+
+TukeyHSD(aov.int)
+
+##franks
+phys.int.geno.fra <- subset(phys.int.geno,Species=="O. franksi")
+str(phys.int.geno.fra)
+#phys.int.geno.fra$Treatment <- as.factor(phys.int.geno.fra$Treatment)
+#str(phys.int.geno.fra)
+
+leveneTest(int.change~Treatment,data=phys.int.geno.fra) #ns
+shapiro.test(phys.int.geno.fra$int.change) #ns
+
+aov.int.fra <- aov(int.change~Treatment,data=phys.int.geno.fra)
+summary(aov.int.fra) #p = 0.0507 .
+#             Df Sum Sq Mean Sq F value Pr(>F)  
+# Treatment    1   1398    1398   5.277 0.0507 .
+# Residuals    8   2120     265                 
+# ---
+
+##favs
+phys.int.geno.fav <- subset(phys.int.geno,Species=="O. faveolata")
+str(phys.int.geno.fav)
+phys.int.geno.fav$Treatment <- as.factor(phys.int.geno.fav$Treatment)
+str(phys.int.geno.fav)
+
+library(bestNormalize)
+
+leveneTest(int.change~Treatment,data=phys.int.geno.fav) #ns
+shapiro.test(phys.int.geno.fav$int.change) #ns
+min(phys.int.geno.fav$int.change)
+phys.int.geno.fav$int.cha1 <- phys.int.geno.fav$int.change+14
+shapiro.test(log(phys.int.geno.fav$int.cha1)) #ns
+
+aov.int.fav <- aov(log(int.cha1)~Treatment,data=phys.int.geno.fav)
+summary(aov.int.fav) #ns
+#             Df Sum Sq Mean Sq F value Pr(>F)
+# Treatment    1  0.137  0.1366   0.082  0.781
+# Residuals    8 13.258  1.6572               
+```
+
+# Buoyant weight
+
+## % change
+
+```{r}
+phys.all$bw_t3t0 <- ((phys.all$bw_avg_t3-phys.all$bw_avg_t0)/phys.all$bw_avg_t0)*100
+phys.all$bw_t4t0 <- ((phys.all$bw_avg_t4-phys.all$bw_avg_t0)/phys.all$bw_avg_t0)*100
+
+phys.all$bw_t4t3 <- ((phys.all$bw_avg_t4-phys.all$bw_avg_t3)/phys.all$bw_avg_t3)*100
+```
+
+### Pre
+
+```{r}
+phys.all.geno <- phys.all %>% group_by(Genotype,Species,Treatment) %>%
+  summarize_at('bw_t3t0',mean,na.rm=T)
+phys.all.geno
+
+phys.all.geno.se <- summarySE(data=phys.all.geno,measurevar="bw_t3t0",groupvars=c("Treatment","Species"))
+
+##dot & error bars
+bw.pre <- ggplot(phys.all.geno,aes(x=Treatment,y=bw_t3t0,shape=Treatment,fill=Treatment))+
+  #geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_line(aes(group=Genotype),color="gray")+
+  geom_point(alpha=0.5)+
+  geom_errorbar(data=phys.all.geno.se,aes(ymin=bw_t3t0-se,ymax=bw_t3t0+se),position=position_dodge(width=0.5),width=0.15)+
+  geom_point(data=phys.all.geno.se,aes(x=Treatment,y=bw_t3t0),position=position_dodge(width=0.5),size=2.5)+
+  facet_grid(Species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  ylab("% change in buoyant weight")+
+  guides(fill="none",shape="none")+
+  scale_x_discrete(labels=c("Control","TV"))+
+  ggtitle("Pre-heat")
+```
+
+### Post
+
+```{r}
+phys.all.geno <- phys.all %>% group_by(Genotype,Species,Treatment) %>%
+  summarize_at('bw_t4t0',mean,na.rm=T)
+phys.all.geno
+
+phys.all.geno.se <- summarySE(data=phys.all.geno,measurevar="bw_t4t0",groupvars=c("Treatment","Species"))
+
+##dot & error bars
+bw.pos <- ggplot(phys.all.geno,aes(x=Treatment,y=bw_t4t0,shape=Treatment,fill=Treatment))+
+  #geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_line(aes(group=Genotype),color="gray")+
+  geom_point(alpha=0.5)+
+  geom_errorbar(data=phys.all.geno.se,aes(ymin=bw_t4t0-se,ymax=bw_t4t0+se),position=position_dodge(width=0.5),width=0.15)+
+  geom_point(data=phys.all.geno.se,aes(x=Treatment,y=bw_t4t0),position=position_dodge(width=0.5),size=2.5)+
+  facet_grid(Species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  ylab("% change in buoyant weight")+
+  guides(fill="none",shape="none")+
+  scale_x_discrete(labels=c("Control","TV"))+
+  ggtitle("Post-heat")
+bw.pos
+bw.pre
+
+#ggsave("color.int.pdf",width=3,height=3.5)
+```
+
+### Post - pre
+
+```{r}
+phys.all.geno <- phys.all %>% group_by(Genotype,Species,Treatment) %>%
+  summarize_at('bw_t4t3',mean,na.rm=T)
+phys.all.geno
+
+phys.all.geno.se <- summarySE(data=phys.all.geno,measurevar="bw_t4t3",groupvars=c("Treatment","Species"))
+
+##dot & error bars
+bw.both <- ggplot(phys.all.geno,aes(x=Treatment,y=bw_t4t3,shape=Treatment,fill=Treatment))+
+  #geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_line(aes(group=Genotype),color="gray")+
+  geom_point(alpha=0.5)+
+  geom_errorbar(data=phys.all.geno.se,aes(ymin=bw_t4t3-se,ymax=bw_t4t3+se),position=position_dodge(width=0.5),width=0.15)+
+  geom_point(data=phys.all.geno.se,aes(x=Treatment,y=bw_t4t3),position=position_dodge(width=0.5),size=2.5)+
+  facet_grid(Species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  ylab("% change in buoyant weight")+
+  guides(fill="none",shape="none")+
+  scale_x_discrete(labels=c("Control","TV"))+
+  ggtitle("Post-heat")
+bw.both
+```
+
+# PAM
+
+## % change
+
+```{r}
+phys.all$pam_t4t3 <- ((phys.all$pam_avg_t4-phys.all$pam_avg_t3)/phys.all$pam_avg_t3)*100
+```
+
+```{r}
+phys.all.geno <- phys.all %>% group_by(Genotype,Species,Treatment) %>%
+  summarize_at('pam_t4t3',mean,na.rm=T)
+phys.all.geno
+
+phys.all.geno.se <- summarySE(data=phys.all.geno,measurevar="pam_t4t3",groupvars=c("Treatment","Species"))
+
+##dot & error bars
+ggplot(phys.all.geno,aes(x=Treatment,y=pam_t4t3,shape=Treatment,fill=Treatment))+
+  #geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_line(aes(group=Genotype),color="gray")+
+  geom_point(alpha=0.5)+
+  geom_errorbar(data=phys.all.geno.se,aes(ymin=pam_t4t3-se,ymax=pam_t4t3+se),position=position_dodge(width=0.5),width=0.15)+
+  geom_point(data=phys.all.geno.se,aes(x=Treatment,y=pam_t4t3),position=position_dodge(width=0.5),size=2.5)+
+  facet_grid(Species~.)+
+  scale_fill_manual(name="Treat",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treat",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  ylab("% change in Fv/Fm")+
+  guides(fill="none",shape="none")+
+  scale_x_discrete(labels=c("Control","TV"))
+```
+
+## Just PAM
+
+```{r}
+phys.less <- phys.all[complete.cases(phys.all$pam_avg_t4),]
+
+phys.less.geno <- phys.less %>% group_by(Genotype,Species,Treatment,Timepoint) %>%
+  summarize_at(c('pam_avg_t3','pam_avg_t4'),mean,na.rm=T)
+phys.less.geno.df <- data.frame(phys.less.geno)
+
+phys.less.geno.time <- reshape(phys.less.geno.df,varying=c('pam_avg_t3','pam_avg_t4'),v.names='pam',timevar='sampling',direction="long")
+phys.less.geno.time$sampling <- as.factor(phys.less.geno.time$sampling)
+
+phys.less.geno.time.se <- summarySE(data=phys.less.geno.time,measurevar="pam",groupvars=c("Treatment","Species","sampling"))
+
+##dot & error bars
+gg.pam <- ggplot(phys.less.geno.time,aes(x=sampling,y=pam,shape=Treatment,fill=Treatment))+
+  geom_jitter(position = position_jitterdodge(jitter.width=0.1),alpha=0.3)+
+  geom_errorbar(data=phys.less.geno.time.se,aes(ymin=pam-se,ymax=pam+se),position=position_dodge(width=0.5),width=0.2)+
+  geom_point(data=phys.less.geno.time.se,aes(x=sampling,y=pam),position=position_dodge(width=0.5),size=2)+
+  facet_grid(.~Species)+
+  scale_fill_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treatment",values=c(21,24),labels=c("Ctrl","TV"))+
+  theme_cowplot()+
+  xlab("")+
+  ylab("Fv/Fm")+
+  ggtitle("")+
+  scale_x_discrete(labels=c("Pre-heat","Heat"))+
+  theme(axis.text.x=element_text(angle=45,hjust=1))
+gg.pam
+```
+
+## PAM stats
+
+```{r}
+##both species
+leveneTest(pam~Treatment,data=phys.less.geno.time) #ns
+shapiro.test(phys.less.geno.time$pam) #ns
+
+aov.pam <- aov(pam~Treatment*Species*sampling,data=phys.less.geno.time)
+summary(aov.pam) 
+#                            Df   Sum Sq  Mean Sq F value  Pr(>F)   
+# Treatment                   1 0.003137 0.003137   4.320 0.04576 * 
+# Species                     1 0.000349 0.000349   0.481 0.49287   
+# sampling                    1 0.007022 0.007022   9.672 0.00391 **
+# Treatment:Species           1 0.000062 0.000062   0.085 0.77210   
+# Treatment:sampling          1 0.000007 0.000007   0.010 0.92065   
+# Species:sampling            1 0.000010 0.000010   0.013 0.90834   
+# Treatment:Species:sampling  1 0.000163 0.000163   0.224 0.63918   
+# Residuals                  32 0.023234 0.000726                   
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+##franks
+phys.less.geno.time.fra <- subset(phys.less.geno.time,Species=="O. franksi")
+
+leveneTest(pam~Treatment,data=phys.less.geno.time.fra) #ns
+shapiro.test(phys.less.geno.time.fra$pam) #ns
+
+aov.pam.fra <- aov(pam~Treatment*sampling,data=phys.less.geno.time.fra)
+summary(aov.pam.fra) 
+#                    Df   Sum Sq  Mean Sq F value Pr(>F)  
+# Treatment           1 0.002040 0.002040   3.600 0.0760 .
+# sampling            1 0.003778 0.003778   6.668 0.0201 *
+# Treatment:sampling  1 0.000120 0.000120   0.211 0.6522  
+# Residuals          16 0.009067 0.000567                 
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+#ggsave("pam.pdf",width=4,height=3)
+```
+
+# Physiology PCA
+
+```{r}
+source("ggbiplot_grey.R")
+
+phys.all$bw_t3t0 <- ((phys.all$bw_avg_t3-phys.all$bw_avg_t0)/phys.all$bw_avg_t0)*100
+phys.all$bw_t4t0 <- ((phys.all$bw_avg_t4-phys.all$bw_avg_t0)/phys.all$bw_avg_t0)*100
+
+phys.all$bw_t4t3 <- ((phys.all$bw_avg_t4-phys.all$bw_avg_t3)/phys.all$bw_avg_t3)*100
+
+colnames(phys.all)
+colnames(phys.all) <- gsub("syms_cm2","syms",colnames(phys.all))
+colnames(phys.all) <- gsub("red_chan_avg_t3","red_pre",colnames(phys.all))
+colnames(phys.all) <- gsub("red_chan_avg_t4","red_heat",colnames(phys.all))
+colnames(phys.all) <- gsub("avg_carbs","carbs",colnames(phys.all))
+colnames(phys.all) <- gsub("avg_prot","prot",colnames(phys.all))
+colnames(phys.all) <- gsub("pam_avg_t3","pam_pre",colnames(phys.all))
+colnames(phys.all) <- gsub("pam_avg_t4","pam_heat",colnames(phys.all))
+colnames(phys.all) <- gsub("bw_t3t0","bw_pre",colnames(phys.all))
+colnames(phys.all) <- gsub("bw_t4t0","bw_heat",colnames(phys.all))
+```
+
+## Pre-heat
+
+### Franksi
+
+```{r}
+phys.pre.fra <- phys.all %>%
+  filter(Timepoint=="preheat" & Species=="O. franksi") %>%
+  select(Nub,Genotype,Species,Treatment,syms,Chla,Chlc2,carbs,prot,pam_pre,bw_pre,red_pre) %>% group_by(Genotype,Species,Treatment) %>%
+    summarize_at(c('syms','Chla','Chlc2','carbs','prot','pam_pre','bw_pre','red_pre'),mean,na.rm=T)
+
+phys.pre.fra.pca <- prcomp(phys.pre.fra[,c(4:11)], center = TRUE,scale. = TRUE)
+summary(phys.pre.fra.pca)
+
+gg.pre.fra <- ggbiplot(phys.pre.fra.pca,alpha=0)+
+  geom_point(aes(shape=phys.pre.fra$Treatment,color=phys.pre.fra$Treatment))+
+  theme_cowplot()+
+  ggtitle("Ofra, pre-heat")+
+  stat_ellipse(aes(color=phys.pre.fra$Treatment,linetype=phys.pre.fra$Treatment))+
+  scale_color_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  #scale_fill_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treatment",values=c(16,17),labels=c("Ctrl","TV"))+
+  scale_linetype_manual(name="Treatment",values=c("solid","dashed"),labels=c("Ctrl","TV"))+
+  xlab("PC1 (40.0%)")+
+  ylab("PC2 (26.9%)")
+gg.pre.fra
+```
+
+### Favs
+
+```{r}
+phys.pre.fav <- phys.all %>%
+  filter(Timepoint=="preheat" & Species=="O. faveolata") %>%
+  select(Nub,Genotype,Species,Treatment,syms,Chla,Chlc2,carbs,prot,pam_pre,bw_pre,red_pre) %>% group_by(Genotype,Species,Treatment) %>%
+    summarize_at(c('syms','Chla','Chlc2','carbs','prot','pam_pre','bw_pre','red_pre'),mean,na.rm=T)
+
+phys.pre.fav.pca <- prcomp(phys.pre.fav[,c(4:11)], center = TRUE,scale. = TRUE)
+summary(phys.pre.fav.pca)
+
+gg.pre.fav <- ggbiplot(phys.pre.fav.pca,alpha=0)+
+  geom_point(aes(shape=phys.pre.fav$Treatment,color=phys.pre.fav$Treatment))+
+  theme_cowplot()+
+  ggtitle("Ofav, pre-heat")+
+  stat_ellipse(aes(color=phys.pre.fav$Treatment,linetype=phys.pre.fav$Treatment))+
+  scale_color_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  #scale_fill_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treatment",values=c(16,17),labels=c("Ctrl","TV"))+
+  scale_linetype_manual(name="Treatment",values=c("solid","dashed"),labels=c("Ctrl","TV"))+
+  xlab("PC1 (69.3%)")+
+  ylab("PC2 (16.9%)")
+gg.pre.fav
+```
+
+## Post-heat
+
+### Franksi
+
+```{r}
+phys.pos.fra <- phys.all %>%
+  filter(Timepoint=="postheat" & Species=="O. franksi") %>%
+  select(Nub,Genotype,Species,Treatment,syms,Chla,Chlc2,carbs,prot,pam_heat,bw_heat,red_heat) %>% group_by(Genotype,Species,Treatment) %>%
+    summarize_at(c('syms','Chla','Chlc2','carbs','prot','pam_heat','bw_heat','red_heat'),mean,na.rm=T)
+
+#phys.pos.fra.com <- phys.pos.fra[complete.cases(phys.pos.fra),]
+
+phys.pos.fra.pca <- prcomp(phys.pos.fra[,c(4:11)], center = TRUE,scale. = TRUE)
+summary(phys.pos.fra.pca)
+
+gg.pos.fra <- ggbiplot(phys.pos.fra.pca,alpha=0)+
+  geom_point(aes(shape=phys.pos.fra$Treatment,color=phys.pos.fra$Treatment))+
+  theme_cowplot()+
+  ggtitle("Ofra, heat")+
+  stat_ellipse(aes(color=phys.pos.fra$Treatment,linetype=phys.pos.fra$Treatment))+
+  scale_color_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  #scale_fill_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treatment",values=c(16,17),labels=c("Ctrl","TV"))+
+  scale_linetype_manual(name="Treatment",values=c("solid","dashed"),labels=c("Ctrl","TV"))+
+  xlab("PC1 (43.6%)")+
+  ylab("PC2 (24.9%)")
+gg.pos.fra
+```
+
+### Favs
+
+```{r}
+phys.pos.fav <- phys.all %>%
+  filter(Timepoint=="postheat" & Species=="O. faveolata") %>%
+  select(Nub,Genotype,Species,Treatment,syms,Chla,Chlc2,carbs,prot,pam_heat,bw_heat,red_heat) %>% group_by(Genotype,Species,Treatment) %>%
+    summarize_at(c('syms','Chla','Chlc2','carbs','prot','pam_heat','bw_heat','red_heat'),mean,na.rm=T)
+
+#phys.pos.fav.com <- phys.pos.fav[complete.cases(phys.pos.fav),]
+
+phys.pos.fav.pca <- prcomp(phys.pos.fav[,c(4:11)], center = TRUE,scale. = TRUE)
+summary(phys.pos.fav.pca)
+
+gg.pos.fav <- ggbiplot(phys.pos.fav.pca,alpha=0)+
+  geom_point(aes(shape=phys.pos.fav$Treatment,color=phys.pos.fav$Treatment))+
+  theme_cowplot()+
+  ggtitle("Ofav, heat")+
+  stat_ellipse(aes(color=phys.pos.fav$Treatment,linetype=phys.pos.fav$Treatment))+
+  scale_color_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  #scale_fill_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treatment",values=c(16,17),labels=c("Ctrl","TV"))+
+  scale_linetype_manual(name="Treatment",values=c("solid","dashed"),labels=c("Ctrl","TV"))+
+  xlab("PC1 (56.5%)")+
+  ylab("PC2 (22.4%)")
+gg.pos.fav
+```
+
+# Phys figure
+
+```{r}
+library("ggpubr")
+
+#ggarrange(gg.pre.fav,gg.pos.fav,gg.pre.fra,gg.pos.fra)
+
+ggarrange(gg.pam,gg.red,gg.pre.fav,gg.pos.fav,gg.pre.fra,gg.pos.fra,labels=c("(a)","(b)","(c)","(d)","(e)","(f)"),common.legend=T,legend="right",align="hv",nrow=3,ncol=2)
+
+ggsave("phys.bleach.pca.pdf",height=9,width=7)
+```
+
+## Phys stats
+
+```{r}
+library("vegan")
+```
+
+### Fav
+
+```{r}
+phys.fav <- phys.all %>%
+  filter(Species=="O. faveolata") %>%
+  select(Nub,Genotype,Treatment,Timepoint,syms,Chla,Chlc2,carbs,prot,pam_heat,bw_heat,red_heat) %>% group_by(Genotype,Treatment,Timepoint) %>%
+  summarize_at(c('syms','Chla','Chlc2','carbs','prot'),mean,na.rm=T)
+
+phys.fav.df <- as.data.frame(phys.fav[,4:8])
+phys.fav.data <- as.data.frame(phys.fav[,1:3])
+
+adonis2(phys.fav.df ~ Treatment*Timepoint, data=phys.fav.data, permutations=999) #ns
+
+dist.fav.df <- vegdist(phys.fav.df)
+
+bet.fav.df <- betadisper(dist.fav.df,phys.fav.data$Treatment)
+permutest(bet.fav.df,permutations=999) #ns
+```
+
+### Fra
+
+```{r}
+phys.fra <- phys.all %>%
+  filter(Species=="O. franksi") %>%
+  select(Nub,Genotype,Treatment,Timepoint,syms,Chla,Chlc2,carbs,prot,pam_heat,bw_heat,red_heat) %>% group_by(Genotype,Treatment,Timepoint) %>%
+  summarize_at(c('syms','Chla','Chlc2','carbs','prot'),mean,na.rm=T)
+
+phys.fra.df <- as.data.frame(phys.fra[,4:8])
+phys.fra.data <- as.data.frame(phys.fra[,1:3])
+
+adonis2(phys.fra.df ~ Treatment*Timepoint, data=phys.fra.data, permutations=999) #ns
+
+dist.fra.df <- vegdist(phys.fra.df)
+
+bet.fra.df <- betadisper(dist.fra.df,phys.fra.data$Treatment)
+permutest(bet.fra.df,permutations=999) #ns
+```
+
+### Phys stats, individual
+
+```{r}
+##pre, fav
+row.names(phys.pre.fav) <- paste0(phys.pre.fav$Genotype,"_",phys.pre.fav$Treatment)
+phys.pre.fav.df <- as.data.frame(phys.pre.fav[,4:11])
+phys.pre.fav.data <- as.data.frame(phys.pre.fav[,1:3])
+
+adonis2(phys.pre.fav.df ~ Treatment, data=phys.pre.fav.data, permutations=999) 
+#marginally significant
+
+dist.pre.fav.df <- vegdist(phys.pre.fav.df)
+
+bet.pre.fav.df <- betadisper(dist.pre.fav.df,phys.pre.fav.data$Treatment)
+permutest(bet.pre.fav.df,permutations=999) #ns
+
+##post, fav
+row.names(phys.pos.fav) <- paste0(phys.pos.fav$Genotype,"_",phys.pos.fav$Treatment)
+phys.pos.fav.df <- as.data.frame(phys.pos.fav[,4:11])
+phys.pos.fav.data <- as.data.frame(phys.pos.fav[,1:3])
+
+adonis2(phys.pos.fav.df ~ Treatment, data=phys.pos.fav.data, permutations=999) #ns
+
+dist.pos.fav.df <- vegdist(phys.pos.fav.df)
+
+bet.pos.fav.df <- betadisper(dist.pos.fav.df,phys.pos.fav.data$Treatment)
+permutest(bet.pos.fav.df,permutations=999) #ns
+
+##pre, fra
+row.names(phys.pre.fra) <- paste0(phys.pre.fra$Genotype,"_",phys.pre.fra$Treatment)
+phys.pre.fra.df <- as.data.frame(phys.pre.fra[,4:11])
+phys.pre.fra.data <- as.data.frame(phys.pre.fra[,1:3])
+
+adonis2(phys.pre.fra.df ~ Treatment, data=phys.pre.fra.data, permutations=999) #ns
+
+dist.pre.fra.df <- vegdist(phys.pre.fra.df)
+
+bet.pre.fra.df <- betadisper(dist.pre.fra.df,phys.pre.fra.data$Treatment)
+permutest(bet.pre.fra.df,permutations=999) #ns
+
+##post, fra
+row.names(phys.pos.fra) <- paste0(phys.pos.fra$Genotype,"_",phys.pos.fra$Treatment)
+phys.pos.fra.df <- as.data.frame(phys.pos.fra[,4:11])
+phys.pos.fra.data <- as.data.frame(phys.pos.fra[,1:3])
+
+adonis2(phys.pos.fra.df ~ Treatment, data=phys.pos.fra.data, permutations=999) #ns
+
+dist.pos.fra.df <- vegdist(phys.pos.fra.df)
+
+bet.pos.fra.df <- betadisper(dist.pos.fra.df,phys.pos.fra.data$Treatment)
+permutest(bet.pos.fra.df,permutations=999) #ns
+```
+
+Citation notes:
+- ggbiplot function
 

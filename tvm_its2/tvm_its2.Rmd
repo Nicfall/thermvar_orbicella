@@ -141,148 +141,123 @@ library(microshades)
 ps <- readRDS("ps.its2.RDS")
 
 ps.rel <- transform_sample_counts(ps, function(x) x / sum(x))
-
-ps.fav <- subset_samples(ps.rel,host_species=="faveolata")
-ps.fra <- subset_samples(ps.rel,host_species=="franksi")
 ```
 
 ### Microshades plot {.tabset}
 
-#### Favs Clade
-
 ```{r}
-# Use microshades function prep_mdf to agglomerate, normalize, and melt the phyloseq object
-mdf.ps.fav <- prep_mdf(ps.fav,subgroup_level="Majority_ITS2_sequence")
+mdf.ps <- prep_mdf(ps.rel,subgroup_level="ITS2_type_profile")
 
-type_groups <- c(unique(mdf.ps.fav$Clade))
+mdf.ps$timepoint <- factor(mdf.ps$timepoint,levels=c("preheat","postheat"))
+
+type_groups <- c(unique(mdf.ps$Majority_ITS2_sequence))
 
 # Create a color object for the specified data
-col.mdf.ps.fav <- create_color_dfs(mdf.ps.fav, top_orientation = FALSE,group_level="Clade",subgroup_level="Majority_ITS2_sequence",selected_groups=c("A","B","D","E"),cvd=TRUE)
+col.mdf.ps <- create_color_dfs(mdf.ps, top_orientation = FALSE,group_level="Majority_ITS2_sequence",subgroup_level="ITS2_type_profile",selected_groups=c("D1","B1","B2","A3"),cvd=TRUE)
 
 #Extract
-col.mdf.ps.fav.m <- col.mdf.ps.fav$mdf
-col.mdf.ps.fav.c <- col.mdf.ps.fav$cdf
+col.mdf.ps.m <- col.mdf.ps$mdf
+col.mdf.ps.c <- col.mdf.ps$cdf
 
-col.mdf.ps.fav.c.new <- color_reassign(col.mdf.ps.fav.c,
-                          group_assignment = c("A","B","D","E"),
-                          color_assignment = c("micro_cvd_purple","micro_cvd_green","micro_cvd_blue","micro_cvd_orange"),group_level="Clade")
+col.mdf.ps.c.new <- color_reassign(col.mdf.ps.c,
+                          group_assignment = c("D1","B1","B2","A3"),
+                          color_assignment = c("micro_cvd_purple","micro_cvd_turquoise","micro_cvd_green","micro_cvd_orange"),group_level="Majority_ITS2_sequence")
 
-plot_microshades(col.mdf.ps.fav.m, col.mdf.ps.fav.c.new)+
-  facet_wrap(~treatment*timepoint,scales="free")+
+#both
+ms.plot.both <- plot_microshades(col.mdf.ps.m, col.mdf.ps.c.new,x="timepoint")+
+  facet_wrap(host_species~genotype*treatment,scales="free")+
   theme_cowplot()+
-  theme(axis.text.x=element_blank())
+  theme(axis.text.x=element_text(angle=45,vjust=0.75,hjust=0.75))+
+  guides(color=guide_legend("Majority seq.-type profile"),fill=guide_legend("Majority seq.-type profile"))
 ```
 
 #### Favs type profile - all
 
 ```{r}
-mdf.ps.fav <- prep_mdf(ps.fav,subgroup_level="ITS2_type_profile")
+col.mdf.ps.m.fav <- subset(col.mdf.ps.m,host_species=="faveolata")
 
-mdf.ps.fav$timepoint <- factor(mdf.ps.fav$timepoint,levels=c("preheat","postheat"))
+##control
+col.mdf.ps.fav.m.con <- subset(col.mdf.ps.m.fav,treatment=="control")
+col.mdf.ps.fav.m.con$treatment <- gsub("control", "Control",col.mdf.ps.fav.m.con$treatment)
 
-type_groups <- c(unique(mdf.ps.fav$Majority_ITS2_sequence))
-
-# Create a color object for the specified data
-col.mdf.ps.fav <- create_color_dfs(mdf.ps.fav, top_orientation = FALSE,group_level="Majority_ITS2_sequence",subgroup_level="ITS2_type_profile",selected_groups=c("D1","B2","B2/B1","A3"),cvd=TRUE)
-
-#Extract
-col.mdf.ps.fav.m <- col.mdf.ps.fav$mdf
-col.mdf.ps.fav.c <- col.mdf.ps.fav$cdf
-
-col.mdf.ps.fav.c.new <- color_reassign(col.mdf.ps.fav.c,
-                          group_assignment = c("D1","B2","B2/B1","A3"),
-                          color_assignment = c("micro_cvd_purple","micro_cvd_turquoise","micro_cvd_green","micro_cvd_orange"),group_level="Majority_ITS2_sequence")
-
-plot_microshades(col.mdf.ps.fav.m, col.mdf.ps.fav.c.new,x="timepoint")+
-  facet_wrap(treatment~genotype,scales="free",nrow=2,ncol=5)+
+ms.plot.con <- plot_microshades(col.mdf.ps.fav.m.con, col.mdf.ps.c.new,x="timepoint")+
+  facet_grid(treatment~genotype,scales="free")+
   theme_cowplot()+
-  theme(axis.text.x=element_text(angle=45,vjust=0.75,hjust=0.75))
-#VB, VD, VE, VF, VG
+  theme(axis.text.x=element_text(angle=45,hjust=0.75))+
+  guides(color=guide_legend("Majority seq.-type profile"),fill=guide_legend("Majority seq.-type profile"))+
+  scale_x_discrete(labels=c("Pre","Heat"))+
+  xlab("")
+ms.plot.con
+
+##therm var
+col.mdf.ps.fav.m.var <- subset(col.mdf.ps.m.fav,treatment=="thermvar")
+col.mdf.ps.fav.m.var$treatment <- gsub("thermvar", "Therm var",col.mdf.ps.fav.m.var$treatment)
+
+ms.plot.var <- plot_microshades(col.mdf.ps.fav.m.var, col.mdf.ps.c.new,x="timepoint")+
+  facet_grid(treatment~genotype,scales="free")+
+  theme_cowplot()+
+  theme(axis.text.x=element_text(angle=45,hjust=0.75))+
+  guides(color=guide_legend("Majority seq.-type profile"),fill=guide_legend("Majority seq.-type profile"))+
+  scale_x_discrete(labels=c("Pre","Heat"))+
+  xlab("")
+ms.plot.var
+
+gg.bar.fav <- ggarrange(ms.plot.con,ms.plot.var,nrow=2, legend="none",align="hv")
+gg.bar.fav2 <- annotate_figure(gg.bar.fav, top=text_grob("Orbicella faveolata",face="italic",size=16))
 
 #ggsave("gg.its2.fav.types.pdf",width=10)
 ```
 
-#### Favs type profile - by genotypes
+#### Franks type profile - all
 
 ```{r}
-##VB
-col.mdf.ps.fav.m.vb <- subset(col.mdf.ps.fav.m,genotype=="VB")
+col.mdf.ps.m.fra <- subset(col.mdf.ps.m,host_species=="franksi")
+#extra re-done sample
+col.mdf.ps.m.fra <- subset(col.mdf.ps.m.fra,Sample!="KA4-2")
 
-plot_microshades(col.mdf.ps.fav.m.vb, col.mdf.ps.fav.c.new)+
-  facet_wrap(~treatment*timepoint,scales="free")+
+##control
+col.mdf.ps.fra.m.con <- subset(col.mdf.ps.m.fra,treatment=="control")
+col.mdf.ps.fra.m.con$treatment <- gsub("control", "Control",col.mdf.ps.fra.m.con$treatment)
+
+ms.plot.con <- plot_microshades(col.mdf.ps.fra.m.con, col.mdf.ps.c.new,x="timepoint")+
+  facet_grid(treatment~genotype,scales="free")+
   theme_cowplot()+
-  theme(axis.text.x=element_blank())
+  theme(axis.text.x=element_text(angle=45,hjust=0.75))+
+  guides(color=guide_legend("Majority seq.-type profile"),fill=guide_legend("Majority seq.-type profile"))+
+  scale_x_discrete(labels=c("Pre","Heat"))+
+  xlab("")+
+  ylab("")
+ms.plot.con
 
-##VD
-col.mdf.ps.fav.m.vd <- subset(col.mdf.ps.fav.m,genotype=="VD")
+##therm var
+col.mdf.ps.fra.m.var <- subset(col.mdf.ps.m.fra,treatment=="thermvar")
+col.mdf.ps.fra.m.var$treatment <- gsub("thermvar", "Therm var",col.mdf.ps.fra.m.var$treatment)
 
-plot_microshades(col.mdf.ps.fav.m.vd, col.mdf.ps.fav.c.new)+
-  facet_wrap(~treatment*timepoint,scales="free")+
+ms.plot.var <- plot_microshades(col.mdf.ps.fra.m.var, col.mdf.ps.c.new,x="timepoint")+
+  facet_grid(treatment~genotype,scales="free")+
   theme_cowplot()+
-  theme(axis.text.x=element_blank())
+  theme(axis.text.x=element_text(angle=45,hjust=0.75))+
+  guides(color=guide_legend("Majority seq.-type profile"),fill=guide_legend("Majority seq.-type profile"))+
+  scale_x_discrete(labels=c("Pre","Heat"))+
+  xlab("")+
+  ylab("")
+ms.plot.var
 
-col.mdf.ps.fav.m.ve <- subset(col.mdf.ps.fav.m,genotype=="VE")
-
-plot_microshades(col.mdf.ps.fav.m.ve, col.mdf.ps.fav.c.new)+
-  facet_wrap(~treatment*timepoint,scales="free")+
-  theme_cowplot()+
-  theme(axis.text.x=element_blank())
-
-ms.plot.sid <- ggarrange(ms.plot.lk1,ms.plot.uk1,ms.plot.uk2,nrow=3,ncol=1,labels="AUTO")
-annotate_figure(ms.plot.sid,top=text_grob("S. siderea",face="italic",size=16))
-
-#ggsave("ms.plot.sid.pdf",height=10,width=8)
-```
-
-#### Franks Clade
-
-```{r}
-# Use microshades function prep_mdf to agglomerate, normalize, and melt the phyloseq object
-mdf.ps.fra <- prep_mdf(ps.fra,subgroup_level="Majority_ITS2_sequence")
-
-type_groups <- c(unique(mdf.ps.fra$Clade))
-
-# Create a color object for the specified data
-col.mdf.ps.fra <- create_color_dfs(mdf.ps.fra, top_orientation = FALSE,group_level="Clade",subgroup_level="Majority_ITS2_sequence",selected_groups=c("A","B","D"),cvd=TRUE)
-
-#Extract
-col.mdf.ps.fra.m <- col.mdf.ps.fra$mdf
-col.mdf.ps.fra.c <- col.mdf.ps.fra$cdf
-
-plot_microshades(col.mdf.ps.fra.m, col.mdf.ps.fra.c)+
-  facet_wrap(~treatment*timepoint,scales="free")+
-  theme_cowplot()+
-  theme(axis.text.x=element_blank())
-```
-
-#### fras type profile - all
-
-```{r}
-mdf.ps.fra.temp <- prep_mdf(ps.fra,subgroup_level="ITS2_type_profile")
-mdf.ps.fra <- subset(mdf.ps.fra.temp,sample_name!="KA4-2") #sample was redone
-
-mdf.ps.fra$timepoint <- factor(mdf.ps.fra$timepoint,levels=c("preheat","postheat"))
-
-type_groups <- c(unique(mdf.ps.fra$Majority_ITS2_sequence))
-
-# Create a color object for the specified data
-col.mdf.ps.fra <- create_color_dfs(mdf.ps.fra, top_orientation = FALSE,group_level="Majority_ITS2_sequence",subgroup_level="ITS2_type_profile",selected_groups=c("D1","B1","B2","A3"),cvd=TRUE)
-
-#Extract
-col.mdf.ps.fra.m <- col.mdf.ps.fra$mdf
-col.mdf.ps.fra.c <- col.mdf.ps.fra$cdf
-
-col.mdf.ps.fra.c.new <- color_reassign(col.mdf.ps.fra.c,
-                          group_assignment = c("D1","B1","B2","A3"),
-                          color_assignment = c("micro_cvd_purple","micro_cvd_turquoise","micro_cvd_green","micro_cvd_orange"),group_level="Majority_ITS2_sequence")
-
-plot_microshades(col.mdf.ps.fra.m, col.mdf.ps.fra.c.new,x="timepoint")+
-  facet_wrap(treatment~genotype,scales="free",nrow=2,ncol=5)+
-  theme_cowplot()+
-  theme(axis.text.x=element_text(angle=45,vjust=0.75,hjust=0.75))
-#VB, VD, VE, VF, VG
+gg.bar.fra <- ggarrange(ms.plot.con,ms.plot.var,nrow=2, legend="none",align="hv")
+gg.bar.fra2 <- annotate_figure(gg.bar.fra, top=text_grob("Orbicella franksi",face="italic",size=16))
 
 #ggsave("gg.its2.fra.types.pdf",width=10)
+```
+
+### Both species plot
+
+```{r}
+#just legend
+# Extract the legend. Returns a gtable
+leg <- get_legend(ms.plot.both)
+
+ggarrange(gg.bar.fav2,gg.bar.fra2,as_ggplot(leg),ncol=3,align="hv",labels=c("(a)","(b)",""))
+ggsave("gg.its2.bothspp.pdf",width=10,height=4.5)
 ```
 
 ### Different plot function to remove black bars
@@ -338,1278 +313,389 @@ plot_bar2(ps.fav, fill="ITS2_type_profile",x="genotype")+
 
 ```
 
-## Bar plot by type profile
-
-### Setup - packages
+## Bubble plot?
 
 ```{r}
-#remotes::install_github("KarstensLab/microshades")
-library("microshades")
-#remotes::install_github("mikemc/speedyseq")
-library("speedyseq")
-library(ggpubr)
-library(cowplot)
-
-#setwd("/Volumes/GoogleDrive-104519233854090018057/My Drive/Flirma/flirma_networks/fl_its2")
-setwd("/Volumes/GoogleDrive/My Drive/Flirma/flirma_networks/fl_its2")
-```
-
-### Setup - data
-
-```{r}
-ps <- readRDS("ps.its2.rds")
-
-ps <- subset_samples(ps,site!="UK3")
-
-ps.sid <- subset_samples(ps,spp=="ssid")
-ps.rad <- subset_samples(ps,spp=="srad")
-
-ps.sid.no0 <- prune_taxa(taxa_sums(ps.sid)!=0,ps.sid)
-ps.rad.no0 <- prune_taxa(taxa_sums(ps.rad)!=0,ps.rad)
-```
-
-### Microshades!{.tabset}
-
-#### Microshades plot - sids
-
-```{r}
-# Use microshades function prep_mdf to agglomerate, normalize, and melt the phyloseq object
-mdf.ps.sid <- prep_mdf(ps.sid.no0,subgroup_level="Majority_ITS2_collapsed")
-
-type_groups <- c(unique(mdf.ps.sid$Clade))
-
-# Create a color object for the specified data
-col.mdf.ps.sid <- create_color_dfs(mdf.ps.sid, top_orientation = FALSE,group_level="Clade",subgroup_level="Majority_ITS2_collapsed",selected_groups=c("A","B","C","D"),cvd=TRUE)
-
-# Extract
-col.mdf.ps.sid.m <- col.mdf.ps.sid$mdf
-col.mdf.ps.sid.c <- col.mdf.ps.sid$cdf
-
-col.mdf.ps.sid.m$zone <- sub("I","Inshore",col.mdf.ps.sid.m$zone)
-col.mdf.ps.sid.m$zone <- sub("O","Offshore",col.mdf.ps.sid.m$zone)
-
-col.mdf.ps.sid.m$time <- factor(col.mdf.ps.sid.m$time,levels=c("Pre","Irma","Post"))
-
-col.mdf.ps.sid.c.new <- color_reassign(col.mdf.ps.sid.c,
-                          group_assignment = c("A","B","C","D"),
-                          color_assignment = c("micro_gray","micro_cvd_blue","micro_cvd_green","micro_brown"),group_level="Clade")
-
-col.mdf.ps.sid.m.lk1 <- subset(col.mdf.ps.sid.m,site=="LK1")
-
-ms.plot.lk1 <- plot_microshades(col.mdf.ps.sid.m.lk1, col.mdf.ps.sid.c.new)+
-  facet_wrap(zone~time,scales="free_x")+
-  theme_cowplot()+
-  theme(axis.text.x=element_blank())+
-  ggtitle("Lower Keys 1")+
-  guides(color=guide_legend("Majority ITS2 sequence"),fill=guide_legend("Majority ITS2 sequence")) 
-  #theme(axis.text.x=element_text(angle=45,hjust=1))
-ms.plot.lk1
-
-col.mdf.ps.sid.m.uk1 <- subset(col.mdf.ps.sid.m,site=="UK1")
-
-ms.plot.uk1 <- plot_microshades(col.mdf.ps.sid.m.uk1, col.mdf.ps.sid.c.new)+
-  facet_wrap(zone~time,scales="free_x")+
-  theme_cowplot()+
-  theme(axis.text.x=element_blank())+
-  ggtitle("Upper Keys 1")+
-  guides(color=guide_legend("Majority ITS2 sequence"),fill=guide_legend("Majority ITS2 sequence")) 
-ms.plot.uk1
-
-col.mdf.ps.sid.m.uk2 <- subset(col.mdf.ps.sid.m,site=="UK2")
-
-ms.plot.uk2 <- plot_microshades(col.mdf.ps.sid.m.uk2, col.mdf.ps.sid.c.new)+
-  facet_wrap(zone~time,scales="free_x")+
-  theme_cowplot()+
-  theme(axis.text.x=element_blank())+
-  ggtitle("Upper Keys 2")+
-  guides(color=guide_legend("Majority ITS2 sequence"),fill=guide_legend("Majority ITS2 sequence")) 
-ms.plot.uk2
-
-ms.plot.sid <- ggarrange(ms.plot.lk1,ms.plot.uk1,ms.plot.uk2,nrow=3,ncol=1,labels="AUTO")
-annotate_figure(ms.plot.sid,top=text_grob("S. siderea",face="italic",size=16))
-
-#ggsave("ms.plot.sid.pdf",height=10,width=8)
-```
-
-#### Microshades plot - rads
-
-```{r}
-# Use microshades function prep_mdf to agglomerate, normalize, and melt the phyloseq object
-mdf.ps.rad <- prep_mdf(ps.rad.no0,subgroup_level="Majority_ITS2_collapsed")
-
-type_groups <- c(unique(mdf.ps.rad$Clade))
-
-# Create a color object for the specified data
-col.mdf.ps.rad <- create_color_dfs(mdf.ps.rad, top_orientation = FALSE,group_level="Clade",subgroup_level="Majority_ITS2_collapsed",selected_groups=c("A","B","C","D"),cvd=TRUE)
-
-# Extract
-col.mdf.ps.rad.m <- col.mdf.ps.rad$mdf
-col.mdf.ps.rad.c <- col.mdf.ps.rad$cdf
-
-col.mdf.ps.rad.m$zone <- sub("I","Inshore",col.mdf.ps.rad.m$zone)
-col.mdf.ps.rad.m$zone <- sub("O","Offshore",col.mdf.ps.rad.m$zone)
-
-col.mdf.ps.rad.m$time <- factor(col.mdf.ps.rad.m$time,levels=c("Pre","Irma","Post"))
-
-col.mdf.ps.rad.c.new <- color_reassign(col.mdf.ps.rad.c,
-                          group_assignment = c("A","B","C","D"),
-                          color_assignment = c("micro_gray","micro_cvd_blue","micro_cvd_green","micro_brown"),group_level="Clade")
-
-col.mdf.ps.rad.m.lk1 <- subset(col.mdf.ps.rad.m,site=="LK1")
-
-ms.plot.lk1 <- plot_microshades(col.mdf.ps.rad.m.lk1, col.mdf.ps.rad.c.new)+
-  facet_wrap(zone~time,scales="free_x")+
-  theme_cowplot()+
-  theme(axis.text.x=element_blank())+
-  ggtitle("Lower Keys 1")+
-  guides(color=guide_legend("Majority ITS2 sequence"),fill=guide_legend("Majority ITS2 sequence")) 
-ms.plot.lk1
-
-col.mdf.ps.rad.m.uk1 <- subset(col.mdf.ps.rad.m,site=="UK1")
-
-ms.plot.uk1 <- plot_microshades(col.mdf.ps.rad.m.uk1, col.mdf.ps.rad.c.new)+
-  facet_wrap(zone~time,scales="free_x")+
-  theme_cowplot()+
-  theme(axis.text.x=element_blank())+
-  ggtitle("Upper Keys 1")+
-  guides(color=guide_legend("Majority ITS2 sequence"),fill=guide_legend("Majority ITS2 sequence")) 
-ms.plot.uk1
-
-col.mdf.ps.rad.m.uk2 <- subset(col.mdf.ps.rad.m,site=="UK2")
-
-ms.plot.uk2 <- plot_microshades(col.mdf.ps.rad.m.uk2, col.mdf.ps.rad.c.new)+
-  facet_wrap(zone~time,scales="free_x")+
-  theme_cowplot()+
-  theme(axis.text.x=element_blank())+
-  ggtitle("Upper Keys 1")+
-  guides(color=guide_legend("Majority ITS2 sequence"),fill=guide_legend("Majority ITS2 sequence")) 
-ms.plot.uk2
-
-ms.plot.rad <- ggarrange(ms.plot.lk1,ms.plot.uk1,ms.plot.uk2,nrow=3,ncol=1)
-annotate_figure(ms.plot.rad,top=text_grob("S. radians",face="italic",size=16))
-
-#ggsave("ms.plot.rad.pdf",height=10,width=8)
-```
-
-# PCoAs/stats
-
-## Setup
-
-```{r}
-library(cowplot)
-library(phyloseq)
-library(vegan)
-library(ggplot2)
-
-setwd("/Volumes/GoogleDrive/My Drive/Flirma/flirma_networks/fl_its2")
-ps.pm <- readRDS("ps.its2.postmed.rds")
-```
-
-Run once, then skip
-
-```{r postmed seqs, eval=F}
-counts <- read.csv('flits_postmed.csv',header=TRUE,row.names=1,check.names=FALSE)
-#325 samples, 1268 post med seqs
-#in relative abundance format
-
-# import dataframe holding sample information
-samdf <- read.csv("fl_sample_info - ITS2_all.csv")
-head(samdf)
-samdf$full_sample <- paste0(samdf$sample,"_",samdf$spp,"_",samdf$year)
-rownames(samdf) <- samdf$full_sample
-
-# import counts (relative abundance from its2 type profiles)
-mcounts <- as.matrix(counts)
-
-# Construct phyloseq object 
-ps.pm1 <- phyloseq(otu_table(mcounts, taxa_are_rows=FALSE),
-               sample_data(samdf))
-
-ps.pm1
-
-ps.pm <- subset_samples(ps.pm1,site!="UK3")
-ps.pm
-# phyloseq-class experiment-level object
-# otu_table()   OTU Table:         [ 1268 taxa and 293 samples ]
-# sample_data() Sample Data:       [ 293 samples by 12 sample variables ]
-
-#saveRDS(ps.pm,file="ps.its2.postmed.rds")
-```
-
-## Stats by time - sids{.tabset}
-
-### Setup
-
-```{r}
-ps.pm.sid <- subset_samples(ps.pm,spp=="ssid")
-
-##for time stats
-ps.pm.sid.lk1 <- subset_samples(ps.pm.sid,site=="LK1")
-ps.pm.sid.uk1 <- subset_samples(ps.pm.sid,site=="UK1")
-ps.pm.sid.uk2 <- subset_samples(ps.pm.sid,site=="UK2")
-
-ps.pm.sid.lk1i <- subset_samples(ps.pm.sid.lk1,zone=="I")
-ps.pm.sid.lk1o <- subset_samples(ps.pm.sid.lk1,zone=="O")
-
-ps.pm.sid.uk1i <- subset_samples(ps.pm.sid.uk1,zone=="I")
-ps.pm.sid.uk1o <- subset_samples(ps.pm.sid.uk1,zone=="O")
-
-ps.pm.sid.uk2i <- subset_samples(ps.pm.sid.uk2,zone=="I")
-ps.pm.sid.uk2o <- subset_samples(ps.pm.sid.uk2,zone=="O")
-```
-
-### Time - LK1 sids
-
-```{r}
-##time - inshore
-seq.sid.lk1i <- data.frame(ps.pm.sid.lk1i@otu_table)
-samdf.sid.lk1i <- data.frame(ps.pm.sid.lk1i@sam_data)
-
-dist.sid.lk1i <- vegdist(seq.sid.lk1i)
-
-bet.sid.lk1i <- betadisper(dist.sid.lk1i,samdf.sid.lk1i$time)
-#anova(bet.ps.pm)
-permutest(bet.sid.lk1i,pairwise=TRUE,permutations=999) #ns
-#post & Irma differ
-#          Irma     Post   Pre
-# Irma          0.032000 0.603
-# Post 0.034299          0.427
-# Pre  0.615872 0.442412      
-plot(bet.sid.lk1i) 
-
-adonis2(seq.sid.lk1i ~ time, data=samdf.sid.lk1i, permutations=999) #p **
-
-pairwise.adonis(seq.sid.lk1i, factors=samdf.sid.lk1i$time, permutations=999)
-##post different than other two
-#          pairs   F.Model         R2 p.value p.adjusted
-# 1 Post vs Irma 3.6451374 0.20658028   0.004      0.004
-# 2  Post vs Pre 7.7147744 0.31215233   0.002      0.002
-# 3  Irma vs Pre 0.7382707 0.04690926   0.430      0.430
-
-##time - offshore
-seq.sid.lk1o <- data.frame(ps.pm.sid.lk1o@otu_table)
-samdf.sid.lk1o <- data.frame(ps.pm.sid.lk1o@sam_data)
-
-dist.sid.lk1o <- vegdist(seq.sid.lk1o)
-
-bet.sid.lk1o <- betadisper(dist.sid.lk1o,samdf.sid.lk1o$time)
-#anova(bet.ps.pm)
-permutest(bet.sid.lk1o,pairwise=TRUE,permutations=999)#ns
-plot(bet.sid.lk1o) 
-
-adonis2(seq.sid.lk1o ~ time, data=samdf.sid.lk1o, permutations=999) #p<0.01**
-
-pairwise.adonis(seq.sid.lk1o, factors=samdf.sid.lk1o$time, permutations=999)
-#post different than other two
-#          pairs  F.Model        R2 p.value p.adjusted
-# 1  Post vs Pre 7.621797 0.3226595   0.008      0.008
-# 2 Post vs Irma 3.638140 0.1951987   0.015      0.015
-# 3  Pre vs Irma 2.032004 0.1193050   0.138      0.138
-```
-
-### Time - UK1 sids
-
-```{r time stats uk1 rel sids}
-##time
-seq.sid.uk1i <- data.frame(ps.pm.sid.uk1i@otu_table)
-samdf.sid.uk1i <- data.frame(ps.pm.sid.uk1i@sam_data)
-
-dist.sid.uk1i <- vegdist(seq.sid.uk1i)
-
-bet.sid.uk1i <- betadisper(dist.sid.uk1i,samdf.sid.uk1i$time)
-#anova(bet.ps.pm)
-permutest(bet.sid.uk1i,pairwise=TRUE,permutations=999) #ns
-plot(bet.sid.uk1i) 
-
-adonis2(seq.sid.uk1i ~ time, data=samdf.sid.uk1i, permutations=999) #p = 0.05 .
-
-pairwise.adonis(seq.sid.uk1i, factors=samdf.sid.uk1i$time, permutations=999)
-#          pairs  F.Model         R2 p.value p.adjusted
-# 1  Post vs Pre 2.804997 0.13482324   0.011      0.011
-# 2 Post vs Irma 2.497810 0.11102459   0.030      0.030
-# 3  Pre vs Irma 0.604099 0.02931936   0.537      0.537
-
-#post different from other two
-
-##time - offshore
-seq.sid.uk1o <- data.frame(ps.pm.sid.uk1o@otu_table)
-samdf.sid.uk1o <- data.frame(ps.pm.sid.uk1o@sam_data)
-
-dist.sid.uk1o <- vegdist(seq.sid.uk1o)
-
-bet.sid.uk1o <- betadisper(dist.sid.uk1o,samdf.sid.uk1o$time)
-#anova(bet.ps.pm)
-permutest(bet.sid.uk1o,pairwise=TRUE,permutations=999)#ns
-plot(bet.sid.uk1o) 
-
-adonis2(seq.sid.uk1o ~ time, data=samdf.sid.uk1o, permutations=999) #ns
-
-pairwise.adonis(seq.sid.uk1o, factors=samdf.sid.uk1o$time, permutations=999) #ns
-```
-
-### Time - UK2 sids
-
-```{r time stats uk2 rel sids}
-##time - inshore
-seq.sid.uk2i <- data.frame(ps.pm.sid.uk2i@otu_table)
-samdf.sid.uk2i <- data.frame(ps.pm.sid.uk2i@sam_data)
-
-dist.sid.uk2i <- vegdist(seq.sid.uk2i)
-
-bet.sid.uk2i <- betadisper(dist.sid.uk2i,samdf.sid.uk2i$time)
-#anova(bet.ps.pm)
-permutest(bet.sid.uk2i,pairwise=TRUE,permutations=999)
-##Pre & irma are different
-#          Irma     Post   Pre
-# Irma          0.439000 0.016
-# Post 0.431974          0.187
-# Pre  0.017649 0.188058      
-plot(bet.sid.uk2i) #pre less constrained
-
-adonis2(seq.sid.uk2i ~ time, data=samdf.sid.uk2i, permutations=999) #p<0.05*
-
-pairwise.adonis(seq.sid.uk2i, factors=samdf.sid.uk2i$time, permutations=999)
-##post different than other two
-#          pairs  F.Model         R2 p.value p.adjusted
-# 1  Pre vs Post 1.958299 0.05766776   0.028      0.028
-# 2  Pre vs Irma 1.398358 0.03461423   0.164      0.164
-# 3 Post vs Irma 1.613048 0.03971747   0.050      0.050
-
-##time - offshore
-seq.sid.uk2o <- data.frame(ps.pm.sid.uk2o@otu_table)
-samdf.sid.uk2o <- data.frame(ps.pm.sid.uk2o@sam_data)
-
-dist.sid.uk2o <- vegdist(seq.sid.uk2o)
-
-bet.sid.uk2o <- betadisper(dist.sid.uk2o,samdf.sid.uk2o$time)
-#anova(bet.ps.pm)
-permutest(bet.sid.uk2o,pairwise=TRUE,permutations=999) #ns
-
-plot(bet.sid.uk2o) 
-
-adonis2(seq.sid.uk2o ~ time, data=samdf.sid.uk2o, permutations=999) #ns
-
-pairwise.adonis(seq.sid.uk2o, factors=samdf.sid.uk2o$time, permutations=999) #ns
-```
-
-## Plot by time - sids {.tabset}
-
-### PCOA LK1 sids
-
-```{r}
-ps.pm.sid.lk1i.no0 <- prune_taxa(taxa_sums(ps.pm.sid.lk1i)!=0,ps.pm.sid.lk1i)
-ord.pm.sid.lk1i.no0 <- ordinate(ps.pm.sid.lk1i.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.sid.lk1i.no0, ord.pm.sid.lk1i.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-
-ps.pm.sid.lk1o.no0 <- prune_taxa(taxa_sums(ps.pm.sid.lk1o)!=0,ps.pm.sid.lk1o)
-ord.pm.sid.lk1o.no0 <- ordinate(ps.pm.sid.lk1o.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.sid.lk1o.no0, ord.pm.sid.lk1o.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-```
-
-### PCOA UK1 sids
-
-```{r}
-ps.pm.sid.uk1i.no0 <- prune_taxa(taxa_sums(ps.pm.sid.uk1i)!=0,ps.pm.sid.uk1i)
-ord.pm.sid.uk1i.no0 <- ordinate(ps.pm.sid.uk1i.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.sid.uk1i.no0, ord.pm.sid.uk1i.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-
-ps.pm.sid.uk1o.no0 <- prune_taxa(taxa_sums(ps.pm.sid.uk1o)!=0,ps.pm.sid.uk1o)
-ord.pm.sid.uk1o.no0 <- ordinate(ps.pm.sid.uk1o.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.sid.uk1o.no0, ord.pm.sid.uk1o.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-```
-
-### PCOA UK2 sids
-
-```{r}
-ps.pm.sid.uk2i.no0 <- prune_taxa(taxa_sums(ps.pm.sid.uk2i)!=0,ps.pm.sid.uk2i)
-ord.pm.sid.uk2i.no0 <- ordinate(ps.pm.sid.uk2i.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.sid.uk2i.no0, ord.pm.sid.uk2i.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-
-ps.pm.sid.uk2o.no0 <- prune_taxa(taxa_sums(ps.pm.sid.uk2o)!=0,ps.pm.sid.uk2o)
-ord.pm.sid.uk2o.no0 <- ordinate(ps.pm.sid.uk2o.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.sid.uk2o.no0, ord.pm.sid.uk2o.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-```
-
-## Stats by time - rads{.tabset}
-
-### Setup
-
-```{r}
-ps.pm.rad <- subset_samples(ps.pm,spp=="srad")
-
-##for time stats
-ps.pm.rad.lk1 <- subset_samples(ps.pm.rad,site=="LK1")
-ps.pm.rad.uk1 <- subset_samples(ps.pm.rad,site=="UK1")
-ps.pm.rad.uk2 <- subset_samples(ps.pm.rad,site=="UK2")
-
-ps.pm.rad.lk1i <- subset_samples(ps.pm.rad.lk1,zone=="I")
-ps.pm.rad.lk1i <- prune_taxa(taxa_sums(ps.pm.rad.lk1i)!=0,ps.pm.rad.lk1i)
-ps.pm.rad.lk1o <- subset_samples(ps.pm.rad.lk1,zone=="O")
-ps.pm.rad.lk1o <- prune_taxa(taxa_sums(ps.pm.rad.lk1o)!=0,ps.pm.rad.lk1o)
-
-ps.pm.rad.uk1i <- subset_samples(ps.pm.rad.uk1,zone=="I")
-ps.pm.rad.uk1i <- prune_taxa(taxa_sums(ps.pm.rad.uk1i)!=0,ps.pm.rad.uk1i)
-ps.pm.rad.uk1o <- subset_samples(ps.pm.rad.uk1,zone=="O")
-ps.pm.rad.uk1o <- prune_taxa(taxa_sums(ps.pm.rad.uk1o)!=0,ps.pm.rad.uk1o)
-
-ps.pm.rad.uk2i <- subset_samples(ps.pm.rad.uk2,zone=="I")
-ps.pm.rad.uk2i <- prune_taxa(taxa_sums(ps.pm.rad.uk2i)!=0,ps.pm.rad.uk2i)
-ps.pm.rad.uk2o <- subset_samples(ps.pm.rad.uk2,zone=="O")
-ps.pm.rad.uk2o <- prune_taxa(taxa_sums(ps.pm.rad.uk2o)!=0,ps.pm.rad.uk2o)
-```
-
-### Time - LK1 rads
-
-```{r}
-##time - inshore
-seq.rad.lk1i <- data.frame(ps.pm.rad.lk1i@otu_table)
-samdf.rad.lk1i <- data.frame(ps.pm.rad.lk1i@sam_data)
-
-dist.rad.lk1i <- vegdist(seq.rad.lk1i)
-
-bet.rad.lk1i <- betadisper(dist.rad.lk1i,samdf.rad.lk1i$time)
-#anova(bet.ps.pm)
-permutest(bet.rad.lk1i,pairwise=TRUE,permutations=999) 
-##Post different than other two
-# Response: Distances
-#           Df  Sum Sq Mean Sq      F N.Perm Pr(>F)    
-# Groups     2 0.90197 0.45098 31.687    999  0.001 ***
-# Residuals 21 0.29888 0.01423                         
-# ---
-# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-# 
-# Pairwise comparisons:
-# (Observed p-value below diagonal, permuted p-value above diagonal)
-#            Irma       Post   Pre
-# Irma            1.0000e-03 0.664
-# Post 1.6560e-05            0.001
-# Pre  6.7417e-01 4.1092e-05      
-plot(bet.rad.lk1i) 
-
-adonis2(seq.rad.lk1i ~ time, data=samdf.rad.lk1i, permutations=999) #p **
-
-pairwise.adonis(seq.rad.lk1i, factors=samdf.rad.lk1i$time, permutations=999)
-##all different
-#          pairs  F.Model        R2 p.value p.adjusted
-# 1  Pre vs Irma 2.630912 0.1798187   0.036      0.036
-# 2  Pre vs Post 3.634913 0.1950593   0.033      0.033
-# 3 Irma vs Post 4.034110 0.2119411   0.024      0.024
-
-##time - offshore
-seq.rad.lk1o <- data.frame(ps.pm.rad.lk1o@otu_table)
-samdf.rad.lk1o <- data.frame(ps.pm.rad.lk1o@sam_data)
-
-dist.rad.lk1o <- vegdist(seq.rad.lk1o)
-
-bet.rad.lk1o <- betadisper(dist.rad.lk1o,samdf.rad.lk1o$time)
-#anova(bet.ps.pm)
-permutest(bet.rad.lk1o,pairwise=TRUE,permutations=999)#ns
-plot(bet.rad.lk1o) 
-
-adonis2(seq.rad.lk1o ~ time, data=samdf.rad.lk1o, permutations=999) #ns
-
-pairwise.adonis(seq.rad.lk1o, factors=samdf.rad.lk1o$time, permutations=999)#ns
-```
-
-### Time - UK1 rads
-
-```{r time stats uk1 rel rads}
-##time
-seq.rad.uk1i <- data.frame(ps.pm.rad.uk1i@otu_table)
-samdf.rad.uk1i <- data.frame(ps.pm.rad.uk1i@sam_data)
-
-dist.rad.uk1i <- vegdist(seq.rad.uk1i)
-
-bet.rad.uk1i <- betadisper(dist.rad.uk1i,samdf.rad.uk1i$time)
-#anova(bet.ps.pm)
-permutest(bet.rad.uk1i,pairwise=TRUE,permutations=999) #ns
-plot(bet.rad.uk1i) 
-
-adonis2(seq.rad.uk1i ~ time, data=samdf.rad.uk1i, permutations=999) #p *
-
-pairwise.adonis(seq.rad.uk1i, factors=samdf.rad.uk1i$time, permutations=999)
-# adonis2(formula = seq.rad.uk1i ~ time, data = samdf.rad.uk1i, permutations = 999)
-#          Df SumOfSqs      R2      F Pr(>F)  
-# time      1  0.12448 0.25484 3.4199   0.03 *
-# Residual 10  0.36399 0.74516                
-# Total    11  0.48847 1.00000
-
-#offshore not available
-```
-
-### Time - UK2 rads
-
-```{r time stats uk2 rel rads}
-##time - inshore
-seq.rad.uk2i <- data.frame(ps.pm.rad.uk2i@otu_table)
-samdf.rad.uk2i <- data.frame(ps.pm.rad.uk2i@sam_data)
-
-dist.rad.uk2i <- vegdist(seq.rad.uk2i)
-
-bet.rad.uk2i <- betadisper(dist.rad.uk2i,samdf.rad.uk2i$time)
-#anova(bet.rad.uk2i)
-permutest(bet.rad.uk2i,pairwise=TRUE,permutations=999)
-##Pre & irma are different
-#          Irma     Post   Pre
-# Irma          0.026000 0.218
-# Post 0.033448          0.016
-# Pre  0.222245 0.023323        
-plot(bet.rad.uk2i) #post less constrained
-
-adonis2(seq.rad.uk2i ~ time, data=samdf.rad.uk2i, permutations=999) #p **
-
-pairwise.adonis(seq.rad.uk2i, factors=samdf.rad.uk2i$time, permutations=999)
-##post different than other two
-#          pairs  F.Model         R2 p.value p.adjusted
-# 1  Pre vs Irma 1.514262 0.09169421   0.161      0.161
-# 2  Pre vs Post 2.938851 0.19672535   0.004      0.004
-# 3 Irma vs Post 3.344836 0.18233122   0.005      0.005
-
-##time - offshore
-seq.rad.uk2o <- data.frame(ps.pm.rad.uk2o@otu_table)
-samdf.rad.uk2o <- data.frame(ps.pm.rad.uk2o@sam_data)
-
-dist.rad.uk2o <- vegdist(seq.rad.uk2o)
-
-bet.rad.uk2o <- betadisper(dist.rad.uk2o,samdf.rad.uk2o$time)
-#anova(bet.ps.pm)
-permutest(bet.rad.uk2o,pairwise=TRUE,permutations=999) #ns
-
-plot(bet.rad.uk2o)
-
-adonis2(seq.rad.uk2o ~ time, data=samdf.rad.uk2o, permutations=999) 
-
-pairwise.adonis(seq.rad.uk2o, factors=samdf.rad.uk2o$time, permutations=999) #ns
-```
-
-## Plot by time - rads {.tabset}
-
-### PCOA LK1 rads
-
-```{r}
-ps.pm.rad.lk1i.no0 <- prune_taxa(taxa_sums(ps.pm.rad.lk1i)!=0,ps.pm.rad.lk1i)
-ord.pm.rad.lk1i.no0 <- ordinate(ps.pm.rad.lk1i.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.rad.lk1i.no0, ord.pm.rad.lk1i.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-
-ps.pm.rad.lk1o.no0 <- prune_taxa(taxa_sums(ps.pm.rad.lk1o)!=0,ps.pm.rad.lk1o)
-ord.pm.rad.lk1o.no0 <- ordinate(ps.pm.rad.lk1o.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.rad.lk1o.no0, ord.pm.rad.lk1o.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-```
-
-### PCOA UK1 rads
-
-```{r}
-ps.pm.rad.uk1i.no0 <- prune_taxa(taxa_sums(ps.pm.rad.uk1i)!=0,ps.pm.rad.uk1i)
-ord.pm.rad.uk1i.no0 <- ordinate(ps.pm.rad.uk1i.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.rad.uk1i.no0, ord.pm.rad.uk1i.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-
-ps.pm.rad.uk1o.no0 <- prune_taxa(taxa_sums(ps.pm.rad.uk1o)!=0,ps.pm.rad.uk1o)
-ord.pm.rad.uk1o.no0 <- ordinate(ps.pm.rad.uk1o.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.rad.uk1o.no0, ord.pm.rad.uk1o.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-```
-
-### PCOA UK2 rads
-
-```{r}
-ps.pm.rad.uk2i.no0 <- prune_taxa(taxa_sums(ps.pm.rad.uk2i)!=0,ps.pm.rad.uk2i)
-ord.pm.rad.uk2i.no0 <- ordinate(ps.pm.rad.uk2i.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.rad.uk2i.no0, ord.pm.rad.uk2i.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-
-ps.pm.rad.uk2o.no0 <- prune_taxa(taxa_sums(ps.pm.rad.uk2o)!=0,ps.pm.rad.uk2o)
-ord.pm.rad.uk2o.no0 <- ordinate(ps.pm.rad.uk2o.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.pm.rad.uk2o.no0, ord.pm.rad.uk2o.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  #facet_grid(site~zone)+
-  theme_cowplot()
-```
-
-# *Script graveyard*
-
-Type profile business
-
-```{r no uk3 for pcoas,eval=F}
-setwd("/Volumes/GoogleDrive/My Drive/Flirma/flirma_networks/fl_its2")
-#ps <- readRDS("ps.its2.rds")
-#ps.rel <- transform_sample_counts(ps, function(x) x / sum(x))
-#saveRDS(ps.rel,"ps.its2.rel.rds")
-ps1 <- readRDS("ps.its2.rel.rds")
-ps <- subset_samples(ps1,site!="UK3")
-
-ps.sid <- subset_samples(ps,spp=="ssid")
-
-ps.sid.pre <- subset_samples(ps.sid,time=="Pre")
-ps.sid.irm <- subset_samples(ps.sid,time=="Irma")
-ps.sid.pos <- subset_samples(ps.sid,time=="Post")
-
-ps.sid.pre.lk1 <- subset_samples(ps.sid.pre,site=="LK1")
-ps.sid.pre.uk1 <- subset_samples(ps.sid.pre,site=="UK1")
-ps.sid.pre.uk2 <- subset_samples(ps.sid.pre,site=="UK2")
-
-ps.sid.irm.lk1 <- subset_samples(ps.sid.irm,site=="LK1")
-ps.sid.irm.uk1 <- subset_samples(ps.sid.irm,site=="UK1")
-ps.sid.irm.uk2 <- subset_samples(ps.sid.irm,site=="UK2")
-
-ps.sid.pos.lk1 <- subset_samples(ps.sid.pos,site=="LK1")
-ps.sid.pos.uk1 <- subset_samples(ps.sid.pos,site=="UK1")
-ps.sid.pos.uk2 <- subset_samples(ps.sid.pos,site=="UK2")
-
-##for time stats
-ps.sid.lk1 <- subset_samples(ps.sid,site=="LK1")
-ps.sid.uk1 <- subset_samples(ps.sid,site=="UK1")
-ps.sid.uk2 <- subset_samples(ps.sid,site=="UK2")
-
-ps.sid.lk1i <- subset_samples(ps.sid.lk1,zone=="I")
-ps.sid.lk1o <- subset_samples(ps.sid.lk1,zone=="O")
-
-ps.sid.uk1i <- subset_samples(ps.sid.uk1,zone=="I")
-ps.sid.uk1o <- subset_samples(ps.sid.uk1,zone=="O")
-
-ps.sid.uk2i <- subset_samples(ps.sid.uk2,zone=="I")
-ps.sid.uk2o <- subset_samples(ps.sid.uk2,zone=="O")
-```
-
-### Plots by time
-
-```{r,eval=F}
-ps.sid.lk1i.no0 <- prune_taxa(taxa_sums(ps.sid.lk1i)!=0,ps.sid.lk1i)
-
-ord.sid.lk1i.no0 <- ordinate(ps.sid.lk1i.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.sid.lk1i.no0, ord.sid.lk1i.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  theme_cowplot()
-
-ps.sid.lk1o.no0 <- prune_taxa(taxa_sums(ps.sid.lk1o)!=0,ps.sid.lk1o)
-
-ord.sid.lk1o.no0 <- ordinate(ps.sid.lk1o.no0,"PCoA",distance="bray")
-
-plot_ordination(ps.sid.lk1o.no0, ord.sid.lk1o.no0, color ="time")+
-  geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  theme_cowplot()
-
-```
-
-### Reef zones
-
-```{r type profiles by site,eval=F}
-ord.sid.pre.lk1 <- ordinate(ps.sid.pre.lk1,"PCoA",distance="bray")
-plot_ordination(ps.sid.pre.lk1, ord.sid.pre.lk1, color ="zone")+
-  #geom_point(alpha=0.5)+
-  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
-  #scale_shape_manual(values=c(16,15))+
-  stat_ellipse()+
-  theme_cowplot()
-  #facet_grid(site~zone)
-
-#ggsave(filename="pcoa.types.site.pdf")
-```
-
-# Stats - type profiles
-
-## Setup
-
-```{r adonis stats packages,eval=F}
-library(vegan)
-#remotes::install_github("Jtrachsel/funfuns")
-library(funfuns)
 library(dplyr)
-library(edgeR)
-
-setwd("/Volumes/GoogleDrive/My Drive/Flirma/flirma_networks/fl_its2")
-ps <- readRDS("ps.its2.rds")
-
-ps <- subset_samples(ps,site!="UK3")
-```
-
-## Subset
-
-```{r subset by site,eval=F}
-ps.sid <- subset_samples(ps,spp="ssid")
-ps.sid <- transform_sample_counts(ps.sid, function(x) x / sum(x))
-
-##for in v off stats
-ps.sid.pre <- subset_samples(ps.sid,time=="Pre")
-ps.sid.irm <- subset_samples(ps.sid,time=="Irma")
-ps.sid.pos <- subset_samples(ps.sid,time=="Post")
-
-ps.sid.pre.lk1 <- subset_samples(ps.sid.pre,site=="LK1")
-ps.sid.pre.uk1 <- subset_samples(ps.sid.pre,site=="UK1")
-ps.sid.pre.uk2 <- subset_samples(ps.sid.pre,site=="UK2")
-
-ps.sid.irm.lk1 <- subset_samples(ps.sid.irm,site=="LK1")
-ps.sid.irm.uk1 <- subset_samples(ps.sid.irm,site=="UK1")
-ps.sid.irm.uk2 <- subset_samples(ps.sid.irm,site=="UK2")
-
-ps.sid.pos.lk1 <- subset_samples(ps.sid.pos,site=="LK1")
-ps.sid.pos.uk1 <- subset_samples(ps.sid.pos,site=="UK1")
-ps.sid.pos.uk2 <- subset_samples(ps.sid.pos,site=="UK2")
-
-##for time stats
-ps.sid.lk1 <- subset_samples(ps.sid,site=="LK1")
-ps.sid.uk1 <- subset_samples(ps.sid,site=="UK1")
-ps.sid.uk2 <- subset_samples(ps.sid,site=="UK2")
-
-ps.sid.lk1i <- subset_samples(ps.sid.lk1,zone=="I")
-ps.sid.lk1o <- subset_samples(ps.sid.lk1,zone=="O")
-
-ps.sid.uk1i <- subset_samples(ps.sid.uk1,zone=="I")
-ps.sid.uk1o <- subset_samples(ps.sid.uk1,zone=="O")
-
-ps.sid.uk2i <- subset_samples(ps.sid.uk2,zone=="I")
-ps.sid.uk2o <- subset_samples(ps.sid.uk2,zone=="O")
-```
-
-## Adonisii - sids{.tabset}
-
-### Reef zones - LK1
-
-```{r stats lk1 rel,eval=F}
-##reef zone pre
-seq.sid.pre.lk1 <- data.frame(ps.sid.pre.lk1@otu_table)
-samdf.sid.pre.lk1 <- data.frame(ps.sid.pre.lk1@sam_data)
-
-dist.sid.pre.lk1 <- vegdist(seq.sid.pre.lk1)
-##zone
-bet.sid.pre.lk1 <- betadisper(dist.sid.pre.lk1,samdf.sid.pre.lk1$zone)
-#anova(bet.ps)
-permutest(bet.sid.pre.lk1,pairwise=FALSE,permutations=999) #ns
-plot(bet.sid.pre.lk1) #ns
-
-adonis2(seq.sid.pre.lk1 ~ zone, data=samdf.sid.pre.lk1, permutations=999) #ns
-
-##reef zone irm
-seq.sid.irm.lk1 <- data.frame(ps.sid.irm.lk1@otu_table)
-samdf.sid.irm.lk1 <- data.frame(ps.sid.irm.lk1@sam_data)
-
-dist.sid.irm.lk1 <- vegdist(seq.sid.irm.lk1)
-##zone
-bet.sid.irm.lk1 <- betadisper(dist.sid.irm.lk1,samdf.sid.irm.lk1$zone)
-#anova(bet.ps)
-permutest(bet.sid.irm.lk1,pairwise=FALSE,permutations=999) #ns
-plot(bet.sid.irm.lk1) #ns
-
-adonis2(seq.sid.irm.lk1 ~ zone, data=samdf.sid.irm.lk1, permutations=999)
-#adonis2(formula = seq.sid.irm.lk1 ~ zone, data = samdf.sid.irm.lk1, permutations = 999)
-#          Df SumOfSqs      R2     F Pr(>F)  
-# zone      1   0.8368 0.06787 1.966  0.038 *
-# Residual 27  11.4929 0.93213               
-# Total    28  12.3298 1.00000               
-# ---
-# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-
-##reef zone post
-seq.sid.pos.lk1 <- data.frame(ps.sid.pos.lk1@otu_table)
-samdf.sid.pos.lk1 <- data.frame(ps.sid.pos.lk1@sam_data)
-
-dist.sid.pos.lk1 <- vegdist(seq.sid.pos.lk1)
-##zone
-bet.sid.pos.lk1 <- betadisper(dist.sid.pos.lk1,samdf.sid.pos.lk1$zone)
-#anova(bet.ps)
-permutest(bet.sid.pos.lk1,pairwise=FALSE,permutations=999) #ns
-plot(bet.sid.pos.lk1) #ns
-
-adonis2(seq.sid.pos.lk1 ~ zone, data=samdf.sid.pos.lk1, permutations=999) #ns
-```
-
-### Reef zones - UK1
-
-```{r,eval=F}
-##reef zone pre
-seq.sid.pre.uk1 <- data.frame(ps.sid.pre.uk1@otu_table)
-samdf.sid.pre.uk1 <- data.frame(ps.sid.pre.uk1@sam_data)
-
-dist.sid.pre.uk1 <- vegdist(seq.sid.pre.uk1)
-##zone
-bet.sid.pre.uk1 <- betadisper(dist.sid.pre.uk1,samdf.sid.pre.uk1$zone)
-#anova(bet.ps)
-permutest(bet.sid.pre.uk1,pairwise=FALSE,permutations=999)
-plot(bet.sid.pre.uk1)
-#          Df SumOfSqs      R2      F Pr(>F)  
-# zone      1    0.914 0.06604 2.0507  0.023 *
-# Residual 29   12.925 0.93396                
-# Total    30   13.839 1.00000                
-
-adonis2(seq.sid.pre.uk1 ~ zone, data=samdf.sid.pre.uk1, permutations=999) 
-# adonis2(formula = seq.sid.pre.uk1 ~ zone, data = samdf.sid.pre.uk1, permutations = 999)
-#          Df SumOfSqs      R2      F Pr(>F)  
-# zone      1    0.914 0.06604 2.0507  0.021 *
-# Residual 29   12.925 0.93396                
-# Total    30   13.839 1.00000                
-# ---
-
-##reef zone irm
-seq.sid.irm.uk1 <- data.frame(ps.sid.irm.uk1@otu_table)
-samdf.sid.irm.uk1 <- data.frame(ps.sid.irm.uk1@sam_data)
-
-dist.sid.irm.uk1 <- vegdist(seq.sid.irm.uk1)
-##zone
-bet.sid.irm.uk1 <- betadisper(dist.sid.irm.uk1,samdf.sid.irm.uk1$zone)
-#anova(bet.ps)
-permutest(bet.sid.irm.uk1,pairwise=FALSE,permutations=999) #ns
-plot(bet.sid.irm.uk1) #ns
-
-adonis2(seq.sid.irm.uk1 ~ zone, data=samdf.sid.irm.uk1, permutations=999)
-# adonis2(formula = seq.sid.irm.uk1 ~ zone, data = samdf.sid.irm.uk1, permutations = 999)
-#          Df SumOfSqs      R2      F Pr(>F)   
-# zone      1   1.3958 0.09887 3.2915  0.002 **
-# Residual 30  12.7216 0.90113                 
-# Total    31  14.1174 1.00000          
-
-##reef zone post
-seq.sid.pos.uk1 <- data.frame(ps.sid.pos.uk1@otu_table)
-samdf.sid.pos.uk1 <- data.frame(ps.sid.pos.uk1@sam_data)
-
-dist.sid.pos.uk1 <- vegdist(seq.sid.pos.uk1)
-##zone
-bet.sid.pos.uk1 <- betadisper(dist.sid.pos.uk1,samdf.sid.pos.uk1$zone)
-#anova(bet.ps)
-permutest(bet.sid.pos.uk1,pairwise=FALSE,permutations=999) #ns
-plot(bet.sid.pos.uk1) #ns
-
-adonis2(seq.sid.pos.uk1 ~ zone, data=samdf.sid.pos.uk1, permutations=999) #ns
-```
-
-### Reef zone - UK2
-
-```{r,eval=F}
-
-```
-
-### Time - LK1 sids
-
-```{r,eval=F}
-##time - inshore
-seq.sid.lk1i <- data.frame(ps.sid.lk1i@otu_table)
-samdf.sid.lk1i <- data.frame(ps.sid.lk1i@sam_data)
-
-dist.sid.lk1i <- vegdist(seq.sid.lk1i)
-
-bet.sid.lk1i <- betadisper(dist.sid.lk1i,samdf.sid.lk1i$time)
-#anova(bet.ps)
-permutest(bet.sid.lk1i,pairwise=TRUE,permutations=999)
-#post different than other two, looks more constrained
-# Permutation test for homogeneity of multivariate dispersions
-# Permutation: free
-# Number of permutations: 999
-# 
-# Response: Distances
-#           Df  Sum Sq   Mean Sq      F N.Perm Pr(>F)  
-# Groups     2 0.05045 0.0252251 4.4942    999  0.016 *
-# Residuals 46 0.25819 0.0056128                       
-# ---
-# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-# 
-# Pairwise comparisons:
-# (Observed p-value below diagonal, permuted p-value above diagonal)
-#           Irma      Post   Pre
-# Irma           0.0240000 0.349
-# Post 0.0239826           0.006
-# Pre  0.3359886 0.0082901  
-plot(bet.sid.lk1i) 
-
-adonis2(seq.sid.lk1i ~ time, data=samdf.sid.lk1i, permutations=999) #p<0.001***
-
-pairwise.adonis(seq.sid.lk1i, factors=samdf.sid.lk1i$time, permutations=999)
-##pre diff than post
-#          pairs  F.Model         R2 p.value p.adjusted
-# 1  Pre vs Irma 1.273944 0.04208053   0.272      0.272
-# 2  Pre vs Post 3.211953 0.08869871   0.001      0.001
-# 3 Irma vs Post 1.507718 0.04785234   0.124      0.124
-
-##time - offshore
-seq.sid.lk1o <- data.frame(ps.sid.lk1o@otu_table)
-samdf.sid.lk1o <- data.frame(ps.sid.lk1o@sam_data)
-
-dist.sid.lk1o <- vegdist(seq.sid.lk1o)
-
-bet.sid.lk1o <- betadisper(dist.sid.lk1o,samdf.sid.lk1o$time)
-#anova(bet.ps)
-permutest(bet.sid.lk1o,pairwise=TRUE,permutations=999)#ns
-plot(bet.sid.lk1o) 
-
-adonis2(seq.sid.lk1o ~ time, data=samdf.sid.lk1o, permutations=999) #p<0.01**
-
-pairwise.adonis(seq.sid.lk1o, factors=samdf.sid.lk1o$time, permutations=999)
-#post different than other two
-#          pairs  F.Model         R2 p.value p.adjusted
-# 1  Irma vs Pre 1.549658 0.05072586   0.132      0.132
-# 2 Irma vs Post 2.674018 0.08442309   0.001      0.001
-# 3  Pre vs Post 2.582747 0.07926733   0.014      0.014
-```
-
-### Time - UK1 sids
-
-```{r time stats uk1 rel,eval=F}
-##time
-seq.sid.uk1i <- data.frame(ps.sid.uk1i@otu_table)
-samdf.sid.uk1i <- data.frame(ps.sid.uk1i@sam_data)
-
-dist.sid.uk1i <- vegdist(seq.sid.uk1i)
-
-bet.sid.uk1i <- betadisper(dist.sid.uk1i,samdf.sid.uk1i$time)
-#anova(bet.ps)
-permutest(bet.sid.uk1i,pairwise=TRUE,permutations=999) #ns
-plot(bet.sid.uk1i) 
-
-adonis2(seq.sid.uk1i ~ time, data=samdf.sid.uk1i, permutations=999) #p<0.01**
-
-pairwise.adonis(seq.sid.uk1i, factors=samdf.sid.uk1i$time, permutations=999)
-#         pairs  F.Model         R2 p.value p.adjusted
-# 1  Post vs Pre 1.903144 0.07347155   0.026      0.026
-# 2 Post vs Irma 2.306884 0.08149552   0.022      0.022
-# 3  Pre vs Irma 1.898341 0.05600101   0.047      0.047
-
-#all different
-```
-
-### Time - UK2 sids
-
-```{r time stats uk2 rel,eval=F}
-##time
-seq.sid.uk2i <- data.frame(ps.sid.uk2i@otu_table)
-samdf.sid.uk2i <- data.frame(ps.sid.uk2i@sam_data)
-
-dist.sid.uk2i <- vegdist(seq.sid.uk2i)
-
-bet.sid.uk2i <- betadisper(dist.sid.uk2i,samdf.sid.uk2i$time)
-#anova(bet.ps)
-permutest(bet.sid.uk2i,pairwise=TRUE,permutations=999)
-##Pre & irma are different
-#          Irma     Post   Pre
-# Irma          0.439000 0.016
-# Post 0.431974          0.187
-# Pre  0.017649 0.188058      
-plot(bet.sid.uk2i) #pre less constrained
-
-adonis2(seq.sid.uk2i ~ time, data=samdf.sid.uk2i, permutations=999) #p<0.05*
-
-pairwise.adonis(seq.sid.uk2i, factors=samdf.sid.uk2i$time, permutations=999)
-##post different than other two
-#          pairs  F.Model         R2 p.value p.adjusted
-# 1  Pre vs Post 1.958299 0.05766776   0.028      0.028
-# 2  Pre vs Irma 1.398358 0.03461423   0.164      0.164
-# 3 Post vs Irma 1.613048 0.03971747   0.050      0.050
-```
-
-
-```{r,eval=F}
-ps.sid.rel <- transform_sample_counts(ps.sid, function(x) x / sum(x))
-## Presence/absence
-
-sppAbun <- as.data.frame(ps.sid.rel@otu_table)
-
-sppAbun[sppAbun > 0] <- 1 #converts from abundance to P/A
-sppAbun
-
-rowSums(sppAbun)
-
-morethan1 <- sppAbun[rowSums(sppAbun)>1,]
-
-find.top.taxa <- function(x,taxa){
-  require(phyloseq)
-  top.taxa <- tax_glom(x, taxa)
-  otu <- otu_table(t(top.taxa)) # remove the transformation if using a merge_sample object
-  tax <- tax_table(top.taxa)
-  j<-apply(otu,1,which.max)
-  k <- j[!duplicated(j)]
-  l <- data.frame(tax[k,])
-  m <- data.frame(otu[,k])
-  s <- as.name(taxa)
-  colnames(m) = l[,taxa]
-  n <- colnames(m)[apply(m,1,which.max)]
-  m[,taxa] <- n
-  return(m)
-}
-find.top.taxa(top.pdy,"Phylum")
-
-#chi-square, top vs side
-chisq.test(SymPortalDataK_1$variable, SymPortalDataK_1$label, correct=FALSE)
-#Pearson's Chi-squared test
-
-#data:  SymPortalDataK_1$variable and SymPortalDataK_1$label
-#X-squared = 5.5824, df = 6, p-value = 0.4716
-
-
-```
-
-
-
-
-
-## Find "most frequent" sym
-
-Just ran once to get the info
-
-```{r top sym, eval=FALSE}
-find.top.asv <- function(x,num){
-  require(phyloseq)
-  require(magrittr)
-  
-  otu <- otu_table(x)
-  tax <- tax_table(x)
-  j1 <- apply(otu,1,sort,index.return=T, decreasing=T) # modifying which.max to return a list of sorted index
-  j2 <- lapply(j1,'[[',"ix") # select for index
-  
-  l <- data.frame(unique(tax@.Data[unlist(j2),]))
-  m <- data.frame(otu@.Data[,unique(unlist(j2))])
-  n <- apply(m,1,sort,index.return=T, decreasing=T) %>%
-    lapply('[[',"ix") %>%  # Extract index
-    lapply(head,n=num) # This to returns the top x tax
-
-  p <- list()
-  for(i in 1:length(n)){
-    p[[i]]<- colnames(m)[n[[i]]]
-  }
-  m$taxa <- p
-  return(m)
-}
-
-top.asvs <- find.top.asv(ps.sid,5)
-top.asvs$taxa <- as.character(top.asvs$taxa)
-
-#write.csv(top.asvs,file="top_sym.csv",row.names=TRUE)
-```
-
-```{r,eval=F}
-table <- read.csv("silly_its_table.csv",header=T)
-
-heatmap(as.matrix(table[,2:11]), labRow=table[,1],rowv=NA)
-```
-
-```{r scraps, include=FALSE, eval=FALSE}
-#### Genus by site & zone
-
-#Nothing interesting
-
-# ps.sz <- merge_samples(ps, "site_zone")
-# ps.sz.clade <- tax_glom(ps.sz, "Clade")
-# ps.sz.clade.rel <- transform_sample_counts(ps.sz.clade, function(x) x / sum(x))
-# plot_bar(ps.sz.clade.rel, fill="Clade")+
-#     geom_bar(aes(color=Clade, fill=Clade), stat="identity", position="stack")
-
-#messy scraps
-
-## Trying out pie charts
-
-#install.packages("remotes")
-#remotes::install_github("cpauvert/psadd")
-
-ggplot(melt.ps.rel.mnw, aes(x = "", y = Abundance, fill = ITS2_type_profile)) +
-  geom_bar(stat = "identity") +
-  coord_polar("y", start = 0)+
-  #geom_text(aes(y = lab.ypos,), color = "white")+
-  #scale_fill_manual(values = mycols) +
-  theme_void()
-
-
-ps.sz.rel <- transform_sample_counts(ps.sz, function(x) x / sum(x))
-
-plot_heatmap(ps.rel,sample.label="site_zone",sample.order="site_zone")
-plot_heatmap(ps.sz.rel,sample.order="site_zone",low="blue",high="red",na.value="black")+
-  facet_wrap(~site)
-
-rownames(dat) = dat$weather
-
-ps.sz.rel@sam_data$zone <- c("BR","FR","BR","FR","BR","FR")
-plot_heatmap(ps.sz.rel,sample.order="site_zone",low="blue",high="red",na.value="black",method=NULL,distance=NULL)
-
-
-seq.sz.rel <- data.frame(ps.sid.irm.rel@otu_table)
-heatmap.2(as.matrix(t(seq.sz.rel)),Rowv=FALSE,Colv=FALSE)
-
-melt.sz.rel <- psmelt(ps.sz.rel)
-
-ggplot(melt.sz.rel, aes(x = Sample, y = OTU)) + 
-  geom_point(aes(size = Abundance, fill = OTU), alpha = 0.75, shape = 21)+
-  #facet_grid(indic_res~.,scales="free",space="free")+
-  theme_cowplot()
-  #scale_fill_manual(values=cols.mnw, guide=FALSE)+
-  #ggtitle("Moorea NW")+
-  #ylab("ASV")+
-  #xlab("")+
-  #scale_x_discrete(labels=c("Back","Fore"))
-
-melt.ps <- psmelt(ps)
-ggplot(melt.ps, aes(x = sample_full, y = OTU)) + 
-  geom_point(aes(size = Abundance, fill = OTU), alpha = 0.75, shape = 21)+
-  #facet_grid(indic_res~.,scales="free",space="free")+
-  theme_cowplot()
-  #scale_fill_manual(values=cols.mnw, guide=FALSE)+
-  #ggtitle("Moorea NW")+
-  #ylab("ASV")+
-  #xlab("")+
-  #scale_x_discrete(labels=c("Back","Fore"))
-
-melt.ps.rel <- psmelt(ps.rel)
-melt.ps.rel.mnw <- subset(melt.ps.rel,site=="MNW")
-melt.ps.rel.mnw.no0 <- subset(melt.ps.rel.mnw,Abundance>0)
-ggplot(melt.ps.rel.mnw.no0, aes(x = sample_full, y = OTU)) + 
-  geom_point(aes(size = Abundance, fill = OTU), alpha = 0.75, shape = 21)+
-  #facet_grid(indic_res~.,scales="free",space="free")+
-  theme_cowplot()
-
-plot_heatmap(ps.sz.rel,sample.order="site_zone",low="blue",high="red",na.value="black",method=NULL,distance=NULL)
-
-## Presence/absence
 
 sppAbun <- as.data.frame(ps@otu_table)
 
 sppAbun[sppAbun > 0] <- 1 #converts from abundance to P/A
 sppAbun
 
-mnwb.names <- subset(samdf,site_zone=="MNW-B")
-mnwf.names <- subset(samdf,site_zone=="MNW-F")
+rowSums(sppAbun)
 
-mnwb.rows <- c(row.names(mnwb.names))
+ps@otu_table <- otu_table(sppAbun,taxa_are_rows=F)
+ps.pa1 <- psmelt(ps)
+ps.pa <- subset(ps.pa1,Sample!="KA4-2")
 
-mnwb.pres <- sppAbun[row.names(sppAbun) %in% mnwb.rows,]
-colSums(mnwb.pres)
-plot(colSums(mnwb.pres))
+ps.pa.grp <- ps.pa %>%
+  group_by(host_species,treatment,timepoint,Sample) %>%
+  summarize_at('Abundance',sum)
 
-#install.packages("gplots")
-library(gplots)
-heatmap.2(as.matrix(sppAbun),Rowv=FALSE,Colv=FALSE)
-dev.off()
+ps.pa.grp.n <- ps.pa.grp %>%
+  group_by(host_species,treatment,timepoint,Abundance) %>%
+  summarise(n=n())
 
-heatmap(as.matrix(sppAbun), scale='none')
+ps.pa.grp.n$timepoint <- factor(ps.pa.grp.n$timepoint,levels=c("preheat","postheat"))
 
-ps.bin <- phyloseq(otu_table(sppAbun, taxa_are_rows=FALSE),
-               sample_data(samdf),
-               tax_table(mtaxa))
+ggplot(ps.pa.grp.n,aes(x=timepoint,y=Abundance,size=n))+
+  geom_point()+
+  facet_wrap(host_species~treatment)+
+  theme_bw()
 
-ps.bin
-
-
-plot_heatmap(ps.bin,sample.order="site_zone")
-dev.off()
+#ggplot(ps.pa.grp.n,aes(x=timepoint,y=Abundance))+
+#  geom_violin()+
+#  facet_wrap(host_species~treatment)
 
 ```
 
+# PCoA
 
-# Flirma scripts scraps
+## All
 
-## Collapsing type profiles via phylogeny tree
+```{r}
+ps.rel.ord <- ordinate(ps.rel,"PCoA",distance="bray")
 
-Started with file: "188_20211214_03_DBV_20211215T030311.seqs.fasta" in the post-med seqs folder. Also started with the taxa info 'Majority_ITS2_sequence", removed the slashes between types, & removed duplicates. That left 24 unique ITS2 types, put these in 'names.txt'. Want to extract the relevant sequences from the fasta file now
-
-```{bash, eval=F}
-for word in $(cat names.txt); do echo $word; grep -w -A 1 $word postmedseqs.fasta >> output.fasta; done
+plot_ordination(ps.rel, ps.rel.ord, color ="timepoint")+
+  geom_point(alpha=0.5)+
+  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
+  #scale_shape_manual(values=c(16,15))+
+  stat_ellipse()+
+  facet_grid(treatment~host_species)+
+  theme_cowplot()
 ```
 
-*Important notes:* produced a fasta file with '--' in between some desired entries, removed that manually, but I'm sure there's a better way than that. It also gave me an unwanted one (A4.3), took that out manually. Easy to do with 24 types, but would be harder with more than that.. processed file was named _output_types_cleaned.fasta_
+## Favs
 
-Then went to ngphylogeny.fr to plot.
+All in one
 
-More notes: 
-- A is fine, the majority sequences are pretty disparate. 
-- The Bs are a total mess, will plot below
-- Cs are fine
-- Ds are fine
+```{r}
+ps.fav <- subset_samples(ps.rel,host_species=="faveolata")
 
-```{r microviz,eval=F}
-#facet_grid(site~zone)
-# 
-# #devtools::install_github("david-barnett/microViz@0.9.3") # check 0.9.3 is the latest release
-# library("microViz")
-# 
-# ps.sid.lk1i.no0 %>%
-#   ps_mutate(
-#     time = as.numeric(time == "time")
-#   ) %>%
-#   ord_calc(
-#     constraints = c("time"),
-#     # method = "RDA", # Note: you can specify RDA explicitly, and it is good practice to do so, but microViz can guess automatically that you want an RDA here (helpful if you don't remember the name?)
-#     scale_cc = FALSE # doesn't make a difference
-#   ) %>%
-#   plot_ord(
-#     colour = "time", size = 2, alpha = 0.5, shape = "active",
-#     plot_taxa = 1:8
-#   )
+ord.fav <- ordinate(ps.fav, "PCoA", "bray")
+
+plot.fav <- plot_ordination(ps.fav, ord.fav,color="treatment",shape="timepoint")+
+  stat_ellipse()+
+  scale_color_manual(values=c("#B4BD93","#C7522B"))+
+  #scale_fill_manual(values=c("#B4BD93","#C7522B"))+
+  scale_shape_manual(values=c(21,24))+
+  #scale_fill_manual(values=c("white","gray"))+
+  theme_cowplot()
+plot.fav
+
+plot.fav.data <- plot.fav[["data"]]
+
+ggplot(plot.fav.data,aes(x=Axis.1,y=Axis.2,shape=treat_time,fill=treat_time,linetype=timepoint))+
+  geom_point()+
+  stat_ellipse(aes(linetype=timepoint))+
+  scale_fill_manual(name="Treat",values=c("#ECA313","#0085A7","#ECA313","#0085A7"),labels=c("Ctrl heat","Ctrl pre","TV heat","TV pre"))+
+  scale_shape_manual(name="Treat",values=c(21,21,24,24),labels=c("Ctrl heat","Ctrl pre","TV heat","TV pre"))+
+  scale_linetype_manual(name="Time point",values=c("dashed","dotted"),labels=c("Heat","Pre-heat"))+
+  #scale_color_manual(name="Treat",values=c("ECA313","#0085A7"))+
+  ggtitle("Rel. - Ofav")+
+  xlab("Axis 1 (22.2%)")+
+  ylab("Axis 2 (15.4%)")+
+  theme_cowplot()
+
+#ggsave("its2.pca.fav",height=2.5,width=3.5)
+
+#cvdPlot(plot.fav.data)
+```
+
+```{r}
+ps.fav <- subset_samples(ps.rel,host_species=="faveolata")
+ps.fav.pre <- subset_samples(ps.rel,timepoint=="preheat")
+ps.fav.pos <- subset_samples(ps.rel,timepoint=="postheat")
+
+ps.fav.pre.ord <- ordinate(ps.fav.pre,"PCoA",distance="bray")
+
+plot_ordination(ps.fav.pre, ps.fav.pre.ord, color ="treatment")+
+  geom_point(alpha=0.5)+
+  stat_ellipse(aes(color=treatment,linetype=treatment))+
+  scale_color_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treatment",values=c(16,17),labels=c("Ctrl","TV"))+
+  scale_linetype_manual(name="Treatment",values=c("solid","dashed"),labels=c("Ctrl","TV"))+
+  facet_grid(~timepoint)+
+  theme_cowplot()
+
+ps.fav.pos.ord <- ordinate(ps.fav.pos,"PCoA",distance="bray")
+
+plot_ordination(ps.fav.pos, ps.fav.pos.ord, color ="treatment")+
+  geom_point(alpha=0.5)+
+  stat_ellipse(aes(color=treatment,linetype=treatment))+
+  scale_color_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  scale_shape_manual(name="Treatment",values=c(16,17),labels=c("Ctrl","TV"))+
+  scale_linetype_manual(name="Treatment",values=c("solid","dashed"),labels=c("Ctrl","TV"))+
+  facet_grid(~timepoint)+
+  theme_cowplot()
+
+ps.fav.con <- subset_samples(ps.fav,treatment=="control")
+ps.fav.con.ord <- ordinate(ps.fav.con,"PCoA",distance="bray")
+
+plot_ordination(ps.fav.con, ps.fav.con.ord, color ="timepoint")+
+  geom_point(alpha=0.5)+
+  stat_ellipse()+
+  #scale_color_manual(name="Treatment",values=c("#B9C184","#D66982"),labels=c("Ctrl","TV"))+
+  #scale_shape_manual(name="Treatment",values=c(16,17),labels=c("Ctrl","TV"))+
+  #scale_linetype_manual(name="Treatment",values=c("solid","dashed"),labels=c("Ctrl","TV"))+
+  facet_grid(~treatment)+
+  theme_cowplot()
+
+ps.fav.var <- subset_samples(ps.fav,treatment=="thermvar")
+ps.fav.var.ord <- ordinate(ps.fav.var,"PCoA",distance="bray")
+
+namez <- c(`thermvar` = "Therm. var.")
+
+plot_ordination(ps.fav.var, ps.fav.var.ord, color ="timepoint",shape="treatment")+
+  geom_point(alpha=0.5)+
+  stat_ellipse()+
+  scale_color_manual(name="Time point",values=c("#0085A7","#ECA313"),labels=c("Pre-heat","Heat"))+
+  scale_shape_manual(values=17)+
+  #scale_linetype_manual(name="Treatment",values=c("solid","dashed"),labels=c("Ctrl","TV"))+
+  facet_grid(~treatment,labeller = as_labeller(namez))+
+  theme_cowplot()+
+  guides(shape="none")
+
+
+```
+
+## Franks
+
+```{r}
+ps.fra <- subset_samples(ps.rel,host_species=="franksi")
+ps.fra.pre <- subset_samples(ps.rel,timepoint=="preheat")
+ps.fra.pos <- subset_samples(ps.rel,timepoint=="postheat")
+```
+
+## Statz - nada
+
+```{r}
+##all all
+seq.rel <- data.frame(ps.rel@otu_table)
+samdf.rel <- data.frame(ps.rel@sam_data)
+
+dist.rel <- vegdist(seq.rel, method="bray")
+
+bet.rel <- betadisper(dist.rel,samdf.rel$treatment)
+permutest(bet.rel,permutations=999)
+plot(bet.rel) #ns
+bet.rel <- betadisper(dist.rel,samdf.rel$timepoint)
+permutest(bet.rel,permutations=999)
+plot(bet.rel) #ns
+
+adonis2(dist.rel ~ treatment*timepoint, data=samdf.rel, permutations=999) #ns
+```
+
+```{r}
+##all
+seq.fav <- data.frame(ps.fav@otu_table)
+samdf.fav <- data.frame(ps.fav@sam_data)
+
+dist.fav <- vegdist(seq.fav, method="bray")
+
+bet.fav <- betadisper(dist.fav,samdf.fav$treatment)
+permutest(bet.fav,permutations=999)
+plot(bet.fav) #ns
+bet.fav <- betadisper(dist.fav,samdf.fav$timepoint)
+permutest(bet.fav,permutations=999)
+plot(bet.fav) #ns
+
+adonis2(dist.fav ~ treatment*timepoint, data=samdf.fav, permutations=999) #ns
+
+##by timepoints - pre
+seq.fav.pre <- data.frame(ps.fav.pre@otu_table)
+samdf.fav.pre <- data.frame(ps.fav.pre@sam_data)
+
+dist.fav.pre <- vegdist(seq.fav.pre, method="bray")
+
+bet.fav.pre <- betadisper(dist.fav.pre,samdf.fav.pre$treatment)
+permutest(bet.fav.pre,permutations=999)
+plot(bet.fav.pre) #ns
+
+adonis2(dist.fav.pre ~ treatment, data=samdf.fav.pre, permutations=999) #ns
+
+##post
+seq.fav.pos <- data.frame(ps.fav.pos@otu_table)
+samdf.fav.pos <- data.frame(ps.fav.pos@sam_data)
+
+dist.fav.pos <- vegdist(seq.fav.pos, method="bray")
+
+bet.fav.pos <- betadisper(dist.fav.pos,samdf.fav.pos$treatment)
+permutest(bet.fav.pos,permutations=999)
+plot(bet.fav.pos) #ns
+
+adonis2(dist.fav.pos ~ treatment, data=samdf.fav.pos, permutations=999) #ns
+```
+
+```{r}
+##all
+seq.fra <- data.frame(ps.fra@otu_table)
+samdf.fra <- data.frame(ps.fra@sam_data)
+
+dist.fra <- vegdist(seq.fra, method="bray")
+
+bet.fra <- betadisper(dist.fra,samdf.fra$treatment)
+permutest(bet.fra,permutations=999)
+plot(bet.fra) #ns
+bet.fra <- betadisper(dist.fra,samdf.fra$timepoint)
+permutest(bet.fra,permutations=999)
+plot(bet.fra) #ns
+
+adonis2(dist.fra ~ treatment*timepoint, data=samdf.fra, permutations=999) #ns
+
+##by timepoints - pre
+seq.fra.pre <- data.frame(ps.fra.pre@otu_table)
+samdf.fra.pre <- data.frame(ps.fra.pre@sam_data)
+
+dist.fra.pre <- vegdist(seq.fra.pre, method="bray")
+
+bet.fra.pre <- betadisper(dist.fra.pre,samdf.fra.pre$treatment)
+permutest(bet.fra.pre,permutations=999)
+plot(bet.fra.pre) #ns
+
+adonis2(dist.fra.pre ~ treatment, data=samdf.fra.pre, permutations=999) #ns
+
+##post
+seq.fra.pos <- data.frame(ps.fra.pos@otu_table)
+samdf.fra.pos <- data.frame(ps.fra.pos@sam_data)
+
+dist.fra.pos <- vegdist(seq.fra.pos, method="bray")
+
+bet.fra.pos <- betadisper(dist.fra.pos,samdf.fra.pos$treatment)
+permutest(bet.fra.pos,permutations=999)
+plot(bet.fra.pos) #ns
+
+adonis2(dist.fra.pos ~ treatment, data=samdf.fra.pos, permutations=999) #ns
+```
+
+# Post med seqs
+
+Formatting notes:
+
+- Cleaned up file called 223_20220913T175714_DBV_20220914T011822.seqs.absolute.abund_only.txt to format for phyloseq
+
+## Setup
+
+```{r packages analysis, echo=FALSE}
+library(phyloseq)
+library('ggplot2')
+library('Rmisc')
+library(cowplot)
+library("ggpubr")
+library("vegan")
+library(scales)
+library(colorspace)
+library(funfuns)
+```
+
+```{r working directory, include=FALSE}
+setwd("/Volumes/GoogleDrive/My Drive/thermvar_microbes_master/thermvar_orbicella/tvm_its2")
+```
+
+## Checking for no read samples
+
+```{r counts per sample, eval=F}
+counts <- read.csv('tvm_symportal_postmedseqs.csv',header=TRUE,row.names=1,check.names=FALSE)
+#41 samples, 336 type profiles
+
+sort(rowSums(counts))
+counts.no0 <- counts[rowSums(counts)>0,]
+#none failed...
+```
+
+## Phyloseq object - post med seqs
+
+Ran once then saved to re-read in later
+
+```{r phyloseq object type profiles, eval=F}
+# import dataframe holding sample information
+samdf <- read.csv("tvm_its2_sample_info.csv")
+head(samdf)
+rownames(samdf) <- samdf$sample_name
+
+# # import taxa info
+# taxa <- read.csv("tvm_symportal_taxa.csv",header=TRUE)
+# rownames(taxa) <- as.factor(taxa$ITS2_type_profile)
+# mtaxa <- as.matrix(taxa)
+
+# import counts (absolute abundance from its2 type profiles)
+mcounts <- as.matrix(counts)
+
+# Construct phyloseq object 
+ps.med <- phyloseq(otu_table(mcounts, taxa_are_rows=FALSE),
+               sample_data(samdf))
+
+ps.med
+# phyloseq-class experiment-level object
+# otu_table()   OTU Table:         [ 336 taxa and 41 samples ]
+# sample_data() Sample Data:       [ 41 samples by 7 sample variables ]
+
+#saveRDS(ps.med,file="ps.its2.postmed.rds")
+```
+
+## Plotting
+
+```{r}
+ps.med.ord <- ordinate(ps.med,"PCoA",distance="bray")
+
+plot_ordination(ps.med, ps.med.ord, color ="timepoint")+
+  geom_point(alpha=0.5)+
+  #scale_color_manual(values=c("darkslategray3","darkslategray4","#000004"))+
+  #scale_shape_manual(values=c(16,15))+
+  stat_ellipse()+
+  facet_grid(treatment~host_species)+
+  theme_cowplot()
+```
+
+## Statz
+
+```{r}
+seq.med <- data.frame(ps.med@otu_table)
+samdf.med <- data.frame(ps.med@sam_data)
+
+dist.med <- vegdist(seq.med, method="bray")
+
+bet.med <- betadisper(dist.med,samdf.med$treatment)
+permutest(bet.med,permutations=999)
+plot(bet.med) #ns
+bet.med <- betadisper(dist.med,samdf.med$timepoint)
+permutest(bet.med,permutations=999)
+plot(bet.med) #ns
+
+adonis2(dist.med ~ treatment*timepoint*host_species, data=samdf.med, permutations=999) #ns
+
+##all
+ps.med.fav <- subset_samples(ps.med,host_species=="faveolata")
+
+seq.med.fav <- data.frame(ps.med.fav@otu_table)
+samdf.med.fav <- data.frame(ps.med.fav@sam_data)
+
+dist.med.fav <- vegdist(seq.med.fav, method="bray")
+
+bet.med.fav <- betadisper(dist.med.fav,samdf.med.fav$treatment)
+permutest(bet.med.fav,permutations=999)
+plot(bet.med.fav) #ns
+bet.med.fav <- betadisper(dist.med.fav,samdf.med.fav$timepoint)
+permutest(bet.med.fav,permutations=999)
+plot(bet.med.fav) #ns
+
+adonis2(dist.med.fav ~ treatment*timepoint, data=samdf.med.fav, permutations=999) #ns
+
+##franks
+ps.med.fra <- subset_samples(ps.med,host_species=="franksi")
+
+seq.med.fra <- data.frame(ps.med.fra@otu_table)
+samdf.med.fra <- data.frame(ps.med.fra@sam_data)
+
+dist.med.fra <- vegdist(seq.med.fra, method="bray")
+
+bet.med.fra <- betadisper(dist.med.fra,samdf.med.fra$treatment)
+permutest(bet.med.fra,permutations=999)
+plot(bet.med.fra) #ns
+bet.med.fra <- betadisper(dist.med.fra,samdf.med.fra$timepoint)
+permutest(bet.med.fra,permutations=999)
+plot(bet.med.fra) #ns
+
+adonis2(dist.med.fra ~ treatment*timepoint, data=samdf.med.fra, permutations=999) #ns
 ```
